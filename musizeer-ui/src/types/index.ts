@@ -901,21 +901,133 @@ export interface AuthConfig {
   folders?: ViewerFolders | null;
 }
 
+/** What a folder setting holds (ADR-0008): a state of the setting, not of a root. */
+export type FolderState = "set" | "not_set" | "root_missing" | "root_refused" | "invalid";
+
 /** One folder the downloads need. `setting` and `detail` (why it is not set) are for administrators. */
 export interface ViewerFolder {
   set: boolean;
-  state: "set" | "not_set" | "root_missing" | "root_refused" | "invalid";
+  state: FolderState;
   /** False for the library folder when no storage provider is active or its library is not a folder. */
   applicable: boolean;
   setting?: string | null;
   detail?: string;
 }
 
+/** The folders the downloads need, named by their role (the server's words, not a setting's key). */
+export type ViewerFolderName = "working_folder" | "library_folder";
+
 export interface ViewerFolders {
   ready: boolean;
-  missing: ("working_folder" | "library_folder")[];
+  missing: ViewerFolderName[];
   working_folder: ViewerFolder;
   library_folder: ViewerFolder;
+}
+
+/** The value of a `folder` setting: a root folder and a path inside it, relative and normalized (`""` is the root itself). */
+export interface FolderValue {
+  root_id: string;
+  path: string;
+}
+
+/** The gateway's last verdict on a root folder: `refused` ones are saved and not used. */
+export type RootState = "accepted" | "refused" | "unchecked";
+
+/** A folder setting (the working folder, a provider's folder) as another record names it. */
+export interface FolderSettingRef {
+  key: string;
+  label: string;
+  group: string;
+}
+
+/** GET /roots (admin): a label and an absolute path as the containers see it. */
+export interface RootFolder {
+  id: string;
+  label: string;
+  path: string;
+  state: RootState;
+  /** Why the gateway refused it; empty otherwise. */
+  reason: string;
+  checked_at: string | null;
+  created_at: string;
+  /** The folder settings that point at this root. */
+  used_by: FolderSettingRef[];
+}
+
+/** One folder setting with what it holds and the folder it resolves to. */
+export interface FolderSetting extends FolderSettingRef {
+  root_id: string | null;
+  path: string | null;
+  /** The absolute folder the value names; null when it is not set. */
+  resolved: string | null;
+  state: FolderState;
+  detail: string;
+  /** The path inside the root the interface suggests (never a default). */
+  suggested_path: string | null;
+}
+
+export interface RootFolderList {
+  roots: RootFolder[];
+  folders: FolderSetting[];
+}
+
+export interface AddRootInput {
+  path: string;
+  label?: string | null;
+}
+
+export interface EditRootInput {
+  path?: string;
+  label?: string;
+}
+
+/** What the gateway sees at a path. */
+export interface GatewayInspection {
+  ok?: boolean;
+  path: string;
+  exists: boolean;
+  directory: boolean;
+  writable: boolean;
+  /** It lies on a mounted volume, not on the container's own file system nor a kernel or memory one. */
+  mounted: boolean;
+  reason: string;
+  device: string | null;
+  mount_id: number | null;
+  mount_point: string | null;
+  fs_type: string | null;
+  free_bytes: number | null;
+  real_path: string | null;
+  write_test?: { ok?: boolean; error?: string };
+}
+
+/** GET /roots/{id}/check: the explicit Check of a root. */
+export interface RootCheck {
+  root: RootFolder;
+  /** Null when the gateway could not be asked (`gateway_error` says why). */
+  gateway: GatewayInspection | null;
+  gateway_error: string | null;
+  application: { exists: boolean; writable: boolean };
+  ok: boolean;
+}
+
+/** A directory of the folder picker; a mounted volume also says what it is and how much room it has. */
+export interface BrowseEntry {
+  name: string;
+  path: string;
+  fs_type?: string | null;
+  free_bytes?: number | null;
+  link?: boolean;
+}
+
+/** GET /roots/browse: the subdirectories of `path` or, without a path, the mounted volumes. */
+export interface RootBrowse {
+  ok?: boolean;
+  path: string | null;
+  /** Null at the mount point of the volume. */
+  parent: string | null;
+  volume: { mount_point: string; fs_type?: string | null } | null;
+  truncated: boolean;
+  directories: BrowseEntry[];
 }
 
 export interface TokenResponse {

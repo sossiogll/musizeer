@@ -7,6 +7,7 @@ import { useErrorText, useFailureToast } from "@/lib/error-text";
 import { useProgressEvents } from "@/contexts/QueueContext";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { usePublicProviders } from "@/hooks/usePublicProviders";
+import { useDownloadGate } from "@/hooks/useFolderStatus";
 import { useServerAction } from "@/hooks/useServerAction";
 import { useI18n, type MessageKey } from "@/i18n";
 import type { LibraryJobKind, LibraryJobRun, LibraryJobs, LibraryJobStarted, StreamEvent } from "@/types";
@@ -74,7 +75,10 @@ export function useLibraryJob(kind: LibraryJobKind) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const failed = useFailureToast();
-  const server = useServerAction();
+  // The likes download queues downloads, so it waits for the folders they need too (ADR-0008); the likes sync does not.
+  const gate = useDownloadGate();
+  const reachable = useServerAction();
+  const server = kind === "download_sync" ? gate : reachable;
   const run = useLibraryJobs()?.[kind];
   const mutation = useMutation<LibraryJobStarted, unknown, "all" | "1m" | "3m" | undefined>({
     mutationFn: (range) => (kind === "library_sync" ? triggerLibrarySync() : triggerLibraryDownloadSync(range ?? "all")),

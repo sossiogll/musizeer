@@ -45,6 +45,36 @@ describe("the error codes of the approval policy are translated", () => {
   });
 });
 
+// The refusals of the root folders and of the folder settings (ADR-0008; app/openapi.yaml: FoldersNotSet, RootRefused).
+const FOLDER_CODES = [
+  "working_folder_not_set", "library_folder_not_set", "root_not_found", "root_path_invalid", "root_label_invalid", "root_path_in_use",
+  "root_in_use", "confirmation_required", "gateway_refused", "gateway_unreachable", "folder_value_invalid", "folder_path_invalid",
+  "folder_root_not_found", "folder_leaves_root", "folder_root_refused", "folder_not_mounted",
+];
+
+describe("the error codes of the root folders are worded", () => {
+  it.each(FOLDER_CODES)("%s has its own words in both languages", (code) => {
+    const english = renderHook(() => useErrorText(), { wrapper }).result.current(code, "SERVER");
+    expect(english).not.toBe("SERVER");
+    localStorage.setItem(LOCALE_STORAGE_KEY, "it");
+    const italian = renderHook(() => useErrorText(), { wrapper }).result.current(code, "SERVER");
+    expect(italian).not.toBe("SERVER");
+    expect(italian).not.toBe(english);
+  });
+
+  it("a download refused for want of a folder says so in a toast", () => {
+    const { result } = renderHook(() => useFailureToast(), { wrapper });
+    act(() => result.current(refused(409, { error_code: "working_folder_not_set", error_message: "x" }), "Download failed"));
+    expect(mockToast.error).toHaveBeenCalledWith(
+      "Downloads are blocked: the working folder is not set. An administrator sets it in Administration › Root folders.",
+    );
+    act(() => result.current(refused(409, { error_code: "library_folder_not_set", error_message: "x" }), "Download failed"));
+    expect(mockToast.error).toHaveBeenLastCalledWith(
+      "Nothing can be stored: the library folder is not set. An administrator sets it in Administration › Root folders.",
+    );
+  });
+});
+
 describe("useFailureToast", () => {
   it("says a refusal in the viewer's words when the server gave a code", () => {
     const { result } = renderHook(() => useFailureToast(), { wrapper });

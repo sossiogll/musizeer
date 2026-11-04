@@ -7,6 +7,7 @@ import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AccountMenu } from "./AccountMenu";
 import { AppBackground } from "./AppBackground";
+import { FoldersBanner } from "./FoldersBanner";
 import { GlobalSearch } from "./GlobalSearch";
 import { LibraryJobIndicator } from "./LibraryJobIndicator";
 import { LibraryJobsWatcher } from "./LibraryJobsWatcher";
@@ -84,6 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <GlobalSearch wrapperClassName="hidden border-b px-4 py-2 sm:block lg:hidden" />
 
       <OfflineBanner />
+      <FoldersBanner />
 
       <main
         id="content"

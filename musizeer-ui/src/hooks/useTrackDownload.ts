@@ -5,7 +5,7 @@ import { downloadTrack } from "@/lib/api-client";
 import { useLiveState, useQueueActions, type LiveTrackState } from "@/contexts/QueueContext";
 import { useDownloadStates } from "@/hooks/useDownloadStates";
 import { markTrackListsStale, rememberFavorite } from "@/hooks/useTrackFavorite";
-import { useServerAction } from "@/hooks/useServerAction";
+import { useDownloadGate } from "@/hooks/useFolderStatus";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useAnnouncePending, useApproval, useWaitingRequest, type Approval } from "@/hooks/useDownloadApproval";
 import { useFailureToast } from "@/lib/error-text";
@@ -67,7 +67,7 @@ export interface TrackDownload {
   /** Start (or retry) the download of this track. */
   download: (mode: DownloadMode) => void;
   busy: boolean;
-  /** Why the action is disabled (e.g. offline), if it is. */
+  /** Why the action is disabled (offline, or a folder the downloads need is not set), if it is. */
   disabledReason: string | undefined;
   /** A download started here will add the track to the favorites. */
   favoriteQueued: boolean;
@@ -113,7 +113,7 @@ export function useTrackDownload(
 ): TrackDownload {
   const { can } = useCapabilities();
   const modes = downloadModes(can);
-  const server = useServerAction();
+  const gate = useDownloadGate();
   const states = useDownloadStates();
   const addItems = useQueueActions();
   const queryClient = useQueryClient();
@@ -184,7 +184,7 @@ export function useTrackDownload(
     modes,
     download: (mode) => void download(mode),
     busy,
-    disabledReason: server.reason,
+    disabledReason: gate.reason,
     favoriteQueued: !!queued?.favorite,
     libraryId: track.library_id ?? owned ?? live?.track_id ?? null,
     approval,

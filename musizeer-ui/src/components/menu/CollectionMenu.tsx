@@ -11,6 +11,7 @@ import { useApproval, useWaitingRequest } from "@/hooks/useDownloadApproval";
 import { useFollowPlaylist } from "@/hooks/useFollowPlaylist";
 import { usePlayTracks } from "@/hooks/usePlayTracks";
 import { DISCOGRAPHY_CAPABILITY, usePublicProviders } from "@/hooks/usePublicProviders";
+import { useDownloadGate } from "@/hooks/useFolderStatus";
 import { useServerAction } from "@/hooks/useServerAction";
 import { downloadModes, type DownloadMode } from "@/hooks/useTrackDownload";
 import { useI18n } from "@/i18n";
@@ -51,6 +52,8 @@ export function CollectionMenu({ item, downloadable = false, buttonClassName, ch
   const { can } = useCapabilities();
   const providers = usePublicProviders();
   const server = useServerAction();
+  // Downloads also wait for the folders they need (ADR-0008); following a playlist or playing do not.
+  const gate = useDownloadGate();
   const { playAll, queueAll } = usePlayTracks();
   const { download, busy } = useCollectionDownload();
   const [confirming, setConfirming] = useState<DownloadMode | null>(null);
@@ -85,8 +88,8 @@ export function CollectionMenu({ item, downloadable = false, buttonClassName, ch
           label: downloadLabel(mode),
           icon: <Download aria-hidden />,
           onSelect: () => (kind === "artist" ? setConfirming(mode) : start(mode)),
-          disabled: busy || server.disabled,
-          hint: server.reason ?? approval.hint,
+          disabled: busy || gate.disabled,
+          hint: gate.reason ?? approval.hint,
         }));
 
   const goTo =

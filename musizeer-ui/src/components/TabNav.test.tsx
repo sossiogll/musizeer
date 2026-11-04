@@ -9,10 +9,10 @@ const hasClasses = (el: Element, classes: string) => classes.split(" ").every((c
 
 describe("TabNav (route tabs)", () => {
   it("Administration: section links in the shared tab look, the current one marked", async () => {
-    const { router } = renderPage(AdminLayout, { path: "/admin/users", otherPaths: ["/admin/requests", "/admin/providers", "/admin/routines", "/admin/sources", "/admin/duplicates", "/admin/system"] });
+    const { router } = renderPage(AdminLayout, { path: "/admin/users", otherPaths: ["/admin/requests", "/admin/providers", "/admin/roots", "/admin/routines", "/admin/sources", "/admin/duplicates", "/admin/system"] });
     const nav = await screen.findByRole("navigation", { name: "Administration sections" });
     const links = within(nav).getAllByRole("link");
-    expect(links.map((l) => l.textContent)).toEqual(["Users", "Requests", "Providers", "Routines", "Sources", "Duplicates", "System"]);
+    expect(links.map((l) => l.textContent)).toEqual(["Users", "Requests", "Providers", "Root folders", "Routines", "Sources", "Duplicates", "System"]);
     expect(within(nav).getByRole("list")).toHaveClass(...tabStripClass.split(" "));
     for (const link of links) expect(hasClasses(link, tabItemClass)).toBe(true);
     expect(within(nav).getByRole("link", { name: "Users" })).toHaveAttribute("aria-current", "page");
