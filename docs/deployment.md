@@ -110,12 +110,32 @@ provider-gateway:
 - **AppArmor**: on Debian and Ubuntu Docker confines containers with `docker-default`, and the gateway fails with
   `bwrap: Creating new namespace failed: Permission denied` without `apparmor=unconfined`. On a host without AppArmor it
   does nothing. Only this container is affected.
-- **Never `privileged: true`.** It would "fix" the error above because it also switches AppArmor and seccomp off and gives the
-  container the host's devices and capabilities: a sandbox escape would then be a host takeover. If the options above are not
-  enough, [the troubleshooting table](gateway.md#troubleshooting) says which host setting is.
+- **Not `privileged: true`**, as long as the options above can work. Privileged would also "fix" the error above, because
+  it switches AppArmor and seccomp off and gives the container the host's devices and capabilities: a sandbox escape would
+  then be a host takeover. If the options above are not enough, [the troubleshooting table](gateway.md#troubleshooting)
+  says which host setting is.
 
 `EACCES` ("Permission denied") means AppArmor or another security module said no; `EPERM` ("No permissions", "Operation
 not permitted") means seccomp or a sysctl (`kernel.unprivileged_userns_clone`, `user.max_user_namespaces`).
+
+### When nothing else works: a privileged gateway
+
+Some hosts do not let you change what the gateway needs (a NAS, a managed machine, a kernel built without unprivileged user
+namespaces for containers). There the last resort is to run the gateway privileged, with a `docker-compose.override.yml`
+next to the compose file (Compose reads it by itself, and an upgrade does not overwrite it):
+
+```yaml
+services:
+  provider-gateway:
+    privileged: true
+```
+
+The gateway runs as before and each provider still gets its sandbox (its own namespaces, no network but its egress, an empty
+environment, only its folders). What is lost is the second wall: the container is no longer confined, so a provider that
+escaped its sandbox would have the whole host. **With a privileged gateway, install only the official providers** — the
+catalog `https://raw.githubusercontent.com/sossiogll/musizeer-providers/master/catalog.json` — and no other catalog, nor a
+provider you did not build yourself. Go back to the default as soon as the host allows it: remove the override and
+`docker compose up -d provider-gateway`.
 
 ## Processes and threads of the providers
 

@@ -372,7 +372,9 @@ provider-gateway:
 **Never `privileged: true`**, and never a `cap_add`. `privileged` "fixes" this by switching AppArmor and
 seccomp off and handing the container every device and capability of the host: the sandbox exists to keep a provider away from
 all of that, and a gateway that runs privileged is the host to anything that gets out of a sandbox. If the three options
-above are not enough on your host, the answer is one of the host settings in the table below, not `privileged`.
+above are not enough on your host, the answer is one of the host settings in the table below, not `privileged`. Only on a
+host where none of them can be changed is a privileged gateway the last resort, with the official providers alone
+([deployment.md](deployment.md#when-nothing-else-works-a-privileged-gateway)).
 
 Neither is optional. With Docker's default profile bubblewrap fails with `No permissions to create a new
 namespace`, and the gateway reports it and runs nothing (integration test, check c).

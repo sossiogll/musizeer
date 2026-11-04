@@ -137,9 +137,10 @@ services:
   # only service that starts provider processes; `app` and the workers reach them
   # through the sockets in the shared `provider_sockets` volume.
   #
-  # NEVER `privileged: true`; no capability, no published port. Privileged "works" only
+  # Not `privileged: true`; no capability, no published port. Privileged "works" only
   # because it also switches AppArmor and seccomp off, which hands the host to whatever
-  # runs in the container. What the gateway does need, and why:
+  # runs in the container (the last resort on a host that allows nothing else, with the
+  # official providers only: docs/deployment.md). What the gateway does need, and why:
   #   - a seccomp profile: Docker's default plus the five syscalls bubblewrap
   #     builds a sandbox with (gateway/seccomp/musizeer-gateway.json, or the
   #     musizeer-gateway.seccomp.json that every release carries; MUSIZEER_GATEWAY_SECCOMP_PROFILE
