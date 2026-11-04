@@ -1,4 +1,4 @@
-import type { AuthConfig, RequestKind, ViewerDownloadPolicy, ViewerDownloadRule, ViewerMode } from "@/types";
+import type { AuthConfig, RequestKind, ViewerDownloadPolicy, ViewerDownloadRule, ViewerFolders, ViewerMode } from "@/types";
 
 const KINDS: RequestKind[] = ["track", "album", "playlist", "artist", "liked_elsewhere"];
 
@@ -43,9 +43,10 @@ export const DEFAULT_POLICY: ViewerDownloadPolicy = {
  * services/capabilities.py — for tests that mock useAuth(). A user's
  * `download_policy` is the one given (every kind automatic by default).
  */
-export function viewerStatus(mode: ViewerMode, downloadPolicy: ViewerDownloadPolicy = AUTOMATIC_POLICY): AuthConfig {
+export function viewerStatus(mode: ViewerMode, downloadPolicy: ViewerDownloadPolicy = AUTOMATIC_POLICY, folders?: ViewerFolders | null): AuthConfig {
   const signedIn = mode !== "guest";
   return {
+    ...(folders !== undefined ? { folders } : {}),
     auth_enabled: mode !== "open",
     registration_open: true,
     mode,
