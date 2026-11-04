@@ -17,7 +17,7 @@ from core import secret_box
 from core.secret_box import SecretBox
 from db.auth_store import CredentialStore
 from db.models import User
-from musizerr_sdk.auth import AccountModel
+from musizeer_sdk.auth import AccountModel
 
 from tests.credentials_support import KEY, OTHER_KEY, THIRD_KEY, raw, raw_scalar, use_keys
 
@@ -156,7 +156,7 @@ def test_with_the_wrong_key_no_account_is_connected_and_no_value_is_returned(ses
     assert [c.data for c in own.oauth2_token_candidates("orbit", AccountModel.PERSONAL_WITH_SHARED)] == []
     for canary in CANARIES:
         assert canary not in caplog.text
-    assert "CREDENTIALS_KEY" in caplog.text, "and the operator is told why"
+    assert "MUSIZEER_CREDENTIALS_KEY" in caplog.text, "and the operator is told why"
 
 
 def test_the_unreadable_row_is_left_untouched_and_is_read_again_when_the_key_returns(engine, session, lost_key, monkeypatch):

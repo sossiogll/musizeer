@@ -15,7 +15,7 @@ from sqlalchemy import update
 from sqlmodel import Session, select
 
 from core import download_policy as dp
-from musizerr_sdk.models import Artist, Playlist
+from musizeer_sdk.models import Artist, Playlist
 from db import download_request_store as store
 from db.models import (
     Download,
@@ -1191,7 +1191,7 @@ def test_a_waiting_request_keeps_what_approval_needs_and_writes_nothing_to_the_c
 
 
 def test_a_stored_cover_is_a_reference_and_comes_back_with_the_prefix(h, monkeypatch):
-    monkeypatch.setenv("PUBLIC_API_PREFIX", "/music/api")
+    monkeypatch.setenv("MUSIZEER_PUBLIC_API_PREFIX", "/music/api")
     with Session(h.engine) as session:
         user = session.get(User, h.id("user"))
         spec = _spec(dp.KIND_PLAYLIST, "cover", 3)

@@ -40,13 +40,12 @@ mappa hardcoded nel core.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any, Callable, Literal, Protocol
 
 from . import download_policy, provider_login, user_auth
-from musizerr_sdk.capabilities import CAPABILITY_UNLIKE_SAVED_TRACK
-from musizerr_sdk.context import (
+from musizeer_sdk.capabilities import CAPABILITY_UNLIKE_SAVED_TRACK
+from musizeer_sdk.context import (
     DEFAULT_CONNECT_TIMEOUT,
     DEFAULT_DOWNLOAD_TIMEOUT,
     DEFAULT_HTTP_TIMEOUT,
@@ -54,7 +53,9 @@ from musizerr_sdk.context import (
 )
 from .routines import ROUTINES, enabled_setting_key, interval_setting_key
 
-SettingType = Literal["bool", "int", "float", "string", "enum", "list", "provider_ref"]
+# ``folder``: a root folder plus a relative path inside it (ADR-0008, ``core/folders.py``); the stored value is
+# ``{"root_id": "<id>", "path": "<relative>"}`` and there is no default root: a folder is whatever the administrator sets.
+SettingType = Literal["bool", "int", "float", "string", "enum", "list", "provider_ref", "folder"]
 
 # Governance di scrittura di un'impostazione:
 #   system                       — deployment-wide, scrivibile solo da admin.
@@ -129,7 +130,7 @@ class GuardFacts(Protocol):
 
 
 def _strong_auth_secret(facts: GuardFacts) -> None:  # noqa: ARG001
-    """Sessions are signed with ``AUTH_SECRET``: authentication cannot be turned on while it is
+    """Sessions are signed with ``MUSIZEER_AUTH_SECRET``: authentication cannot be turned on while it is
     missing, short or a placeholder (``user_auth.require_strong_secret``, the rule startup asks too)."""
     try:
         user_auth.require_strong_secret()
@@ -224,12 +225,18 @@ class SettingDef:
     # punto di vista di sicurezza/privacy (vedi auth_enabled). Mai serializzato
     # al frontend (to_public() non lo include).
     fail_safe: Any = _NO_FAIL_SAFE
-    # Chiave di capability (``musizerr_sdk.capabilities.CAPABILITY_*``) attraverso cui
+    # Chiave di capability (``musizeer_sdk.capabilities.CAPABILITY_*``) attraverso cui
     # questa impostazione agisce sui provider: la UI elenca accanto al
     # controllo i provider che la dichiarano (``capabilities`` in GET
     # /providers) e lo stato dell'account dell'utente su ciascuno. Mai un nome
     # di provider.
     provider_capability: str | None = None
+    # Per type == "folder": the path inside the root folder the interface SUGGESTS (relative, normalized), never a
+    # default: an unset folder is unset (ADR-0008). For a provider's folder it is the ``default`` the provider declared.
+    suggested_path: str | None = None
+    # Per type == "folder": the host itself writes into it (the working folder), so the root has to be mounted where
+    # the application runs too, not only in the gateway (checked when the setting is written).
+    host_side: bool = False
 
     @property
     def admin_only(self) -> bool:
@@ -250,6 +257,7 @@ class SettingDef:
             "label_key": f"settings.labels.{self.key}",
             "description_key": f"settings.descriptions.{self.key}",
             "provider_capability": self.provider_capability,
+            "suggested_path": self.suggested_path,
             "admin_only": self.admin_only,
             "scope": self.scope,
             "options": list(self.options) if self.options else None,
@@ -315,7 +323,7 @@ GROUP_RECONCILIATION = "reconciliation"
 # sotto.
 GROUP_IDENTIFICATION = "identification"
 GROUP_LIBRARY_SYNC = "library_sync"
-# The playlists users keep in Musizerr (services/playlists.py).
+# The playlists users keep in Musizeer (services/playlists.py).
 GROUP_PLAYLISTS = "playlists"
 GROUP_AUTH = "auth"
 # Configurazione (enabled/intervallo) dei "system routines" — generata da
@@ -414,7 +422,7 @@ GROUPS: tuple[GroupMeta, ...] = (
     ),
     GroupMeta(
         GROUP_LIBRARY_SYNC, "Sincronizzazione libreria",
-        "Ogni quanto musizerr importa le tracce salvate/piaciute dai metadata "
+        "Ogni quanto musizeer importa le tracce salvate/piaciute dai metadata "
         "provider, e come verifica separatamente che la libreria sia "
         "allineata al sync provider: due percorsi indipendenti che condividono "
         "questo gruppo.",
@@ -422,7 +430,7 @@ GROUPS: tuple[GroupMeta, ...] = (
     ),
     GroupMeta(
         GROUP_PLAYLISTS, "Playlist",
-        "Le playlist che gli utenti tengono in Musizerr (proprie o seguite da un provider di metadati).",
+        "Le playlist che gli utenti tengono in Musizeer (proprie o seguite da un provider di metadati).",
         AREA_LIBRARY,
     ),
     # ----- system -----
@@ -438,13 +446,13 @@ GROUPS: tuple[GroupMeta, ...] = (
     ),
     GroupMeta(
         GROUP_RECONCILIATION, "Riconciliazione delegati",
-        "Come musizerr apprende l'esito di un download delegato a un sistema "
+        "Come musizeer apprende l'esito di un download delegato a un sistema "
         "esterno (webhook, poll, auto-like).",
         AREA_SYSTEM,
     ),
     GroupMeta(
         GROUP_ROUTINES, "System routines",
-        "Ogni quanto girano i job periodici di musizerr, e se sono abilitati. "
+        "Ogni quanto girano i job periodici di musizeer, e se sono abilitati. "
         "Gestiti dalla pagina dedicata (stato ultima esecuzione, avvio manuale), "
         "non da questa lista generica di impostazioni.",
         AREA_SYSTEM,
@@ -452,19 +460,6 @@ GROUPS: tuple[GroupMeta, ...] = (
 )
 
 _GROUPS_BY_KEY: dict[str, GroupMeta] = {g.key: g for g in GROUPS}
-
-# The folder the host and the provider gateway exchange files through. The gateway mounts it in its
-# sandboxes and reads its own copy of the path from ``GATEWAY_WORKSPACE_DIR``; the deployment (docker-compose.yaml)
-# sets BOTH from ONE variable, ``WORKSPACE_DIR``, so the default of the ``workspace_dir`` setting is read from it.
-# A value saved in the settings wins over this seed, and the host warns when it differs from the gateway's
-# (``services/provider_events.GatewayWatcher``).
-DEFAULT_WORKSPACE_DIR = "/downloads/.musizerr-work"
-WORKSPACE_DIR_ENVIRONMENT = "WORKSPACE_DIR"
-
-
-def default_workspace_dir() -> str:
-    return os.environ.get(WORKSPACE_DIR_ENVIRONMENT, "").strip() or DEFAULT_WORKSPACE_DIR
-
 
 def _entry(
     key: str,
@@ -649,9 +644,14 @@ CATALOG: tuple[SettingDef, ...] = (
 
     # ======================= area: library =======================
     # ----- File -----
-    _entry("workspace_dir", "string", default_workspace_dir(), GROUP_FILES,
+    # The working folder (ADR-0008): where the host creates the temporary folders the providers write and read files in
+    # (``<working folder>/<provider>/<random>``) and keeps the files waiting for the storage (``held-uploads``). A root
+    # folder plus a path, with NO default: until the administrator sets it downloads are blocked
+    # (``working_folder_not_set``). The host pushes it to the gateway; there is no copy in the environment.
+    _entry("workspace_dir", "folder", None, GROUP_FILES,
            "Cartella di lavoro",
-           "Dove l'host crea le cartelle temporanee in cui i provider scrivono e leggono i file. Sullo stesso volume della libreria, spostare un file è istantaneo. Deve essere la stessa cartella del gateway (WORKSPACE_DIR / GATEWAY_WORKSPACE_DIR): cambiarla qui senza cambiarla anche là scollega i provider dai loro file."),
+           "Dove l'host crea le cartelle temporanee in cui i provider scrivono e leggono i file e tiene i file in attesa di upload. È una cartella radice più un percorso al suo interno, senza valore predefinito: finché non è impostata i download sono bloccati. Va tenuta fuori dalla cartella che legge il music server.",
+           required=False, suggested_path=".musizeer-work", host_side=True),
     _entry("held_upload_max_age_hours", "int", 72, GROUP_FILES,
            "Conservazione file in attesa di upload (h)",
            "Un file scaricato il cui salvataggio sullo storage è fallito resta nella cartella di lavoro e si ritenta solo l'upload; oltre queste ore viene eliminato (il download si rifarà da capo).",
@@ -887,8 +887,8 @@ CATALOG: tuple[SettingDef, ...] = (
            "Token webhook", "Token segreto che i sistemi esterni includono per autenticare le notifiche push.",
            secret=True, required=False),
     _entry("public_base_url", "string", "", GROUP_RECONCILIATION,
-           "URL pubblico musizerr",
-           "URL con cui i sistemi esterni raggiungono musizerr (es. http://100.x.y.z:8000), per auto-registrare i webhook. Deve essere raggiungibile DA quel sistema, non dal browser: nella stessa rete Docker usa un URL interno (es. http://frontend).",
+           "URL pubblico musizeer",
+           "URL con cui i sistemi esterni raggiungono musizeer (es. http://100.x.y.z:8000), per auto-registrare i webhook. Deve essere raggiungibile DA quel sistema, non dal browser: nella stessa rete Docker usa un URL interno (es. http://frontend).",
            required=False),
 ) + _download_request_settings() + _routine_settings()
 

@@ -1,5 +1,5 @@
 """
-Implementazione host di ``musizerr_sdk.context.ProviderContext``: legge
+Implementazione host di ``musizeer_sdk.context.ProviderContext``: legge
 impostazioni e timeout del provider al momento della chiamata (nessuna
 cache), cosi' una modifica dalla UI vale subito senza riavvio.
 """
@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from musizerr_sdk.context import ContextSnapshot
+from musizeer_sdk.context import ContextSnapshot
 from services.config_manager import get_config
 from core.settings_resolver import provider_config_from_system_settings
-from services import public_urls
+from services import folders, public_urls
 
 if TYPE_CHECKING:
     from sqlmodel import Session
@@ -42,19 +42,28 @@ class HostProviderContext:
     """The host's side of a provider's ``ProviderContext``. A provider never
     holds it: before each call the host takes a ``snapshot()`` and sends it with
     the call, and the provider's runner builds the provider's own context from it
-    (``musizerr_sdk.runner``). The accessors below are for the host (e.g. the
+    (``musizeer_sdk.runner``). The accessors below are for the host (e.g. the
     ``AuthManager`` reads the timeouts and the settings of the provider it
     authenticates)."""
 
     def __init__(self, provider_name: str) -> None:
         self._provider_name = provider_name
+        # The short keys of the provider's ``folder`` settings (ADR-0008): known once it has described itself.
+        self._folder_keys: frozenset[str] = frozenset()
+
+    def declare_settings(self, schema) -> None:
+        """The provider's settings (its manifest's ``config_schema``): which of them are folders, so that a call's context
+        carries the absolute path each names instead of the stored root-and-path."""
+        self._folder_keys = frozenset(folders.folder_keys(schema))
 
     def snapshot(self) -> ContextSnapshot:
         """The settings and timeouts as they are NOW, and the public URL prefix:
-        read at every call, so a change from the UI applies to the next one."""
+        read at every call, so a change from the UI applies to the next one. A folder setting is resolved here, against
+        the root folders, to the plain absolute path the provider receives (nothing when it is not set): the provider
+        never knows that roots exist."""
         config = get_config()
         return ContextSnapshot(
-            settings=self.settings(),
+            settings=folders.resolve_provider_settings(self.settings(), self._folder_keys),
             http_timeout=config.http_timeout,
             download_timeout=config.download_timeout,
             connect_timeout=config.connect_timeout,

@@ -96,7 +96,7 @@ authentication off the accounts wait: they can sign in once it is turned on.
 checked and hashed by ONE function, `user_auth.hash_new_password`, which every path that sets a password
 calls: registration, `POST /admin/users` (and with it the guided administrator step of the settings
 page), an administrator changing a password (`PATCH /admin/users/{id}` with `password`) and the first
-administrator of a deployment (`ADMIN_BOOTSTRAP_PASSWORD`: a short one is logged as an error and no
+administrator of a deployment (`MUSIZEER_ADMIN_BOOTSTRAP_PASSWORD`: a short one is logged as an error and no
 administrator is created). The routes answer 422 with `detail.error_code` `password_too_short` and
 `detail.min_length` (`routes/_password.py`), which the UI words in the viewer's language. The rule applies
 only when a password is set: an account whose password is shorter keeps signing in
@@ -108,11 +108,11 @@ page or any writer):
 1. *It is refused* with 400 `no_admin_account` unless at least one **active administrator who can
    sign in** exists (role `admin`, active, not waiting for approval, a password stored; the
    synthetic user is never one). The check is the second half of the `guard_on` of the setting, after
-   the `AUTH_SECRET` rule (`auth_secret_insecure` comes first), so every writer passes through it
+   the `MUSIZEER_AUTH_SECRET` rule (`auth_secret_insecure` comes first), so every writer passes through it
    (`core.settings_catalog._authentication_may_turn_on`, `tests/test_auth_modes.py`). Without it
    the owner of an open instance would turn the app off to themselves, with no account to sign in
    with and no way back but the database. The first start can still create one from
-   `ADMIN_BOOTSTRAP_EMAIL`/`ADMIN_BOOTSTRAP_PASSWORD` (only while no account exists).
+   `MUSIZEER_ADMIN_BOOTSTRAP_EMAIL`/`MUSIZEER_ADMIN_BOOTSTRAP_PASSWORD` (only while no account exists).
 2. *The UI* turns that refusal into one guided step, "Create the administrator account": a username
    and a password, then it creates the administrator (`POST /admin/users`), saves the batch that
    was refused with `adopt_into` naming them, and signs them in, so the owner never sees a locked
@@ -164,24 +164,24 @@ Turning it on again adopts what accumulated in the meantime, by the same rules, 
 administrator then chosen. The personal-only accounts that moved are the administrator's: in
 open mode the owner connects them again.
 
-### `AUTH_SECRET`: the key that signs every session
+### `MUSIZEER_AUTH_SECRET`: the key that signs every session
 
 With `auth_enabled = true` access and refresh tokens are signed with the
-`AUTH_SECRET` environment variable. Whoever knows it can forge the token of an
+`MUSIZEER_AUTH_SECRET` environment variable. Whoever knows it can forge the token of an
 administrator, so it is a secret of the deployment, never a value from the
 repository.
 
 - **Compose requires it** (`docker-compose.yaml`, `docker-compose.dev.yml`):
-  `${AUTH_SECRET:?set AUTH_SECRET in .env}`, like `POSTGRES_PASSWORD`. Write it in
+  `${MUSIZEER_AUTH_SECRET:?set MUSIZEER_AUTH_SECRET in .env (it was AUTH_SECRET)}`, like `POSTGRES_PASSWORD`. Under its old name, `AUTH_SECRET`, it is **not read**: the application logs `AUTH_SECRET is no longer read: rename it to MUSIZEER_AUTH_SECRET` and, with authentication on, refuses to start with the same words (the value is unchanged: rename the line, sessions stay valid). Write it in
   `.env` (never committed, see `.env.example`); every `docker compose`
   command on those files needs it, `stop` and `config` included.
 - **The application refuses to start** with authentication enabled and an
-  `AUTH_SECRET` that is missing, empty, shorter than 32 characters or one of
+  `MUSIZEER_AUTH_SECRET` that is missing, empty, shorter than 32 characters or one of
   the published placeholders (`change-me-in-production`, `change-me`,
   `secret`). The error names the variable and how to fix it. There is no
   setting to skip the check. With authentication off nothing is signed and the
   secret is not looked at, which is also why the test suite (it runs with
-  `AUTH_SECRET=test`) starts no application with authentication on unless a test
+  `MUSIZEER_AUTH_SECRET=test`) starts no application with authentication on unless a test
   sets the secret it means (`tests/test_auth_secret_startup.py`).
 - **Turning authentication on while the app runs** (the settings page, `PATCH
   /settings {"auth_enabled": true}`) asks the same rule, where every setting is
@@ -199,9 +199,9 @@ repository.
   (`docs/postgresql.md`) keep the value you set, or accept that.
 - An instance that ran with the old compose default (`change-me-in-production`)
   must be treated as exposed: set a new secret, and review the accounts.
-- `AUTH_SECRET` signs; it encrypts nothing. The connected provider accounts, tokens,
+- `MUSIZEER_AUTH_SECRET` signs; it encrypts nothing. The connected provider accounts, tokens,
   API keys and secret settings in the database are encrypted with a different key,
-  `CREDENTIALS_KEY`, required in the same way: `docs/credentials.md`.
+  `MUSIZEER_CREDENTIALS_KEY`, required in the same way: `docs/credentials.md`.
 
 ## The three principals
 
@@ -256,10 +256,32 @@ fallback, no app-only token). In open mode the owner has it like any user (store
 Migration 0030 dropped the old global value; when it was on, each admin kept
 it as their own choice. Tests: `app/tests/test_unlike_on_origin.py`.
 
+## Root folders (ADR-0008)
+
+The places the product may use are **admin only**, all of them (`routes/roots.py`; with authentication off the owner is the
+administrator). A root is a label and a path as the containers see it; a user never sees one, only the effect.
+
+| Route | Who | What |
+| --- | --- | --- |
+| `GET /roots` | admin | the roots with the gateway's verdict, and every folder setting with what it resolves to |
+| `POST /roots`, `PATCH /roots/{id}`, `DELETE /roots/{id}` | admin | declare, rename or move (a root in use needs `?confirm=true`), remove (a root in use cannot be removed: 409 `root_in_use` listing the settings) |
+| `GET /roots/{id}/check` | admin | the gateway's `inspect` with a real write test, and what the application sees |
+| `GET /roots/browse?path=` | admin | the folder picker (the gateway's `browse`: subdirectories of a mounted volume only) |
+
+A `folder` setting is written like any system setting (`PATCH /settings`, admin; the working folder is `workspace_dir`, a
+provider's folder is one of its settings under the provider's group); a user cannot read it (scope `system`). What every
+viewer does get is **whether downloads can work**: `GET /auth/account/status` carries `folders` (`ready`, `missing`, and per
+folder `set`, `state`, `applicable`), so the shell can warn an administrator and disable the download actions for everyone
+with the reason. Only an administrator also gets the setting that holds the folder and why it is not set (`setting`,
+`detail`); a guest gets `null`. While the working folder or the active storage provider's library folder is not set, every
+download route (and an approval, a retry, the likes download) answers **409** `working_folder_not_set` /
+`library_folder_not_set` to whoever asks (`error_detail`, the reason, for an administrator only), and nothing is queued or
+recorded, an approval request included.
+
 ## Provider accounts
 
 Whose account a call to a provider uses is not a role rule: each provider
-declares an account model (`musizerr_sdk.auth.AccountModel`) and one routing rule
+declares an account model (`musizeer_sdk.auth.AccountModel`) and one routing rule
 (`db/auth_store.py::CredentialStore`) applies it, for a route, a worker and a
 script alike.
 
@@ -436,7 +458,7 @@ anonymous caller consumes the deployment's provider API quota.
   indexed column, so the extra `WHERE` is cheap — applied to the count query,
   the grouping query, and the per-track attempts query, so another user's
   attempt on a track a non-admin also tried is neither counted nor listed).
-  The frontend route `/downloads` (`musizerr-ui/src/router.tsx`) is now
+  The frontend route `/downloads` (`musizeer-ui/src/router.tsx`) is now
   wrapped in `RequireCapability`, matching `/config`, so an anonymous visitor is
   redirected to sign in instead of hitting a bare 401.
 - `POST /downloads/{track_id}/retry` follows the same rule as the four
@@ -456,7 +478,7 @@ anonymous caller consumes the deployment's provider API quota.
   token) and sets it; `StreamUserDep` accepts that cookie or, for API
   clients with no cookie, a regular bearer access token. `DELETE
   /auth/account/stream-session` and `POST /auth/account/logout` both clear
-  it. The frontend (`musizerr-ui/src/lib/api-client.ts`) calls the mint
+  it. The frontend (`musizeer-ui/src/lib/api-client.ts`) calls the mint
   endpoint after login and after every access-token refresh, over the same `/api`
   same-origin proxy the rest of the app uses, so the cookie rides along with
   the `<audio>` request. `GET /playback/{provider}/{provider_id}` follows the
@@ -485,7 +507,7 @@ anonymous caller consumes the deployment's provider API quota.
 ## The frontend reads capabilities, never rules
 
 The UI never re-derives a permission from `auth_enabled`, a role or a token.
-`useCapabilities()` (`musizerr-ui/src/hooks/useCapabilities.ts`) returns the
+`useCapabilities()` (`musizeer-ui/src/hooks/useCapabilities.ts`) returns the
 `mode` and `capabilities` of GET /auth/account/status, and
 `RequireCapability` guards routes with them: a guest is sent to sign in, a
 signed-in viewer without the capability is told why. While the viewer is
@@ -517,6 +539,8 @@ every route.
 | Connect, test and disconnect their own provider accounts (`linked_accounts`) | no (401) | yes | yes | yes (the system user's) |
 | Connect, test and disconnect a shared (instance) account, the OAuth2 app, an API key | no (401) | no (403) | yes | yes |
 | Admin routes, credentials, routines | no (401) | no (403) | yes | yes |
+| Root folders, the folder picker, the working folder and a provider's folder (`/roots`, `PATCH /settings`) | no (401) | no (403) | yes | yes |
+| `folders` in the viewer status (are the folders downloads need set?) | no (`null`) | yes (no setting or reason) | yes (with the setting and the reason) | yes (with the setting and the reason) |
 | Create an account (`POST /admin/users`) | no (401) | no (403) | yes | yes (the account waits for authentication to be turned on) |
 | Register by themselves (`POST /auth/account/register`) | when the setting is on | n/a | n/a | no (400; the status says `registration_open: false`) |
 | Raw error detail (`error_detail`), `/health` internals | no | no | yes | yes |

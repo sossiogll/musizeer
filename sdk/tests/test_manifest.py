@@ -5,11 +5,11 @@ import inspect
 
 import pytest
 
-from musizerr_sdk import manifest, wire
-from musizerr_sdk.auth import AuthFlow
-from musizerr_sdk.context import StaticProviderContext
-from musizerr_sdk.interfaces import BaseProvider, LyricsProvider, PROVIDER_API_VERSION
-from musizerr_sdk.manifest import ManifestError, build
+from musizeer_sdk import manifest, wire
+from musizeer_sdk.auth import AuthFlow
+from musizeer_sdk.context import StaticProviderContext
+from musizeer_sdk.interfaces import BaseProvider, LyricsProvider, PROVIDER_API_VERSION
+from musizeer_sdk.manifest import ManifestError, build
 from sample_providers import (
     NO_AUTH,
     SampleDownload,
@@ -128,12 +128,16 @@ def test_the_contract_methods_are_the_public_functions_of_the_roles_it_fills():
 ABCS = [BaseProvider, *manifest.ROLES.values()]
 
 
+# Declared queries whose name does not start with a capability verb.
+OTHER_QUERIES = {"library_folder_setting"}
+
+
 def _no_argument_queries(abc):
     for name, member in vars(abc).items():
         if name.startswith("_") or not inspect.isfunction(member):
             continue
         parameters = [p for p in inspect.signature(member).parameters.values() if p.name != "self"]
-        if not parameters and name.startswith(("supports_", "restricts_", "is_")):
+        if not parameters and (name.startswith(("supports_", "restricts_", "is_")) or name in OTHER_QUERIES):
             yield name
 
 

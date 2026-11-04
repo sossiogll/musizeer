@@ -1,5 +1,5 @@
 """
-Authenticated encryption of the secrets Musizerr keeps in its database (docs/credentials.md).
+Authenticated encryption of the secrets Musizeer keeps in its database (docs/credentials.md).
 
 PURE: the keys come in as arguments, nothing is read from the environment and nothing is logged
 here; ``db/credential_cipher.py`` is the host module that owns the environment variables, the
@@ -54,7 +54,7 @@ def is_sealed(stored: str | None) -> bool:
 
 
 def split_keys(text: str | None) -> list[str]:
-    """The keys of a comma-separated list (``CREDENTIALS_KEY_PREVIOUS``): spaces around a key and
+    """The keys of a comma-separated list (``MUSIZEER_CREDENTIALS_KEY_PREVIOUS``): spaces around a key and
     empty items are ignored."""
     return [part.strip() for part in (text or "").split(",") if part.strip()]
 

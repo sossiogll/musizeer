@@ -10,11 +10,11 @@
 #   -c NAME         the catalog file, data/catalogs/NAME.json (default: registry, which the
 #                   registry service serves as http://registry:9000/registry.json)
 #   -r HOST:PORT    the registry to push to as THIS machine reaches it (default
-#                   127.0.0.1:${OCI_REGISTRY_PORT:-15000}, the oci-registry service)
+#                   127.0.0.1:${MUSIZEER_DEV_OCI_REGISTRY_PORT:-15000}, the oci-registry service)
 #
 # Running it again for the same provider rebuilds the image and moves the entry's digest on; the
 # entries of other providers in the file are kept. The entries name the image
-# oci-registry:5000/musizerr-provider-<name> (how the gateway reaches the registry; set
+# oci-registry:5000/musizeer-provider-<name> (how the gateway reaches the registry; set
 # PROVIDER_INSTALL_REGISTRY for another name), so the source is added with "allow insecure registry".
 #
 # Needs Docker. The catalog is written by a throwaway python:3.12-slim container (scripts/dev_catalog.py):
@@ -23,7 +23,7 @@ set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 CATALOG=registry
-REGISTRY=127.0.0.1:${OCI_REGISTRY_PORT:-15000}
+REGISTRY=127.0.0.1:${MUSIZEER_DEV_OCI_REGISTRY_PORT:-15000}
 while getopts "c:r:h" option; do
   case $option in
     c) CATALOG=$OPTARG ;;
@@ -48,11 +48,11 @@ for DIR in "$@"; do
   echo "== $DIR" >&2
   LABELS=$TMP/labels
   DIGEST=$(PROVIDER_LABELS_OUT=$LABELS PROVIDER_INSTALL_REGISTRY=$INSTALL_REGISTRY "$ROOT/scripts/build-provider-image.sh" "$DIR" "$REGISTRY" 2>/dev/null)
-  NAME=$(sed -n 's/^org.musizerr.provider.name=//p' "$LABELS")
+  NAME=$(sed -n 's/^org.musizeer.provider.name=//p' "$LABELS")
   [ -n "$NAME" ] && [ -n "$DIGEST" ] || { echo "the build of $DIR printed no name or digest" >&2; exit 1; }
   docker run --rm --user "$(id -u):$(id -g)" \
     -v "$ROOT/scripts/dev_catalog.py":/dev_catalog.py:ro -v "$CATALOG_DIR":/catalogs -v "$TMP":/work:ro \
     python:3.12-slim python /dev_catalog.py --catalog "/catalogs/$CATALOG.json" \
-      --image "$INSTALL_REGISTRY/musizerr-provider-$NAME" --digest "$DIGEST" --labels /work/labels
+      --image "$INSTALL_REGISTRY/musizeer-provider-$NAME" --digest "$DIGEST" --labels /work/labels
 done
 echo "catalog: $CATALOG_DIR/$CATALOG.json" >&2

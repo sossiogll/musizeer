@@ -22,7 +22,7 @@ import os
 import sys
 import time
 
-os.environ.setdefault("DATA_DIR", "/tmp/data")
+os.environ.setdefault("MUSIZEER_DATA_DIR", "/tmp/data")
 
 from db.engine import engine  # noqa: E402
 from services.database_init import init_db  # noqa: E402
@@ -30,8 +30,8 @@ from sqlmodel import Session  # noqa: E402
 
 from core.settings_resolver import namespace_provider_key  # noqa: E402
 from db.settings_store import SettingsRepository  # noqa: E402
-from musizerr_sdk.auth import AuthSession  # noqa: E402
-from musizerr_sdk.models import Track  # noqa: E402
+from musizeer_sdk.auth import AuthSession  # noqa: E402
+from musizeer_sdk.models import Track  # noqa: E402
 from services import provider_events  # noqa: E402
 from services.config_manager import get_config  # noqa: E402
 from services.provider_registry import ProviderRegistry  # noqa: E402

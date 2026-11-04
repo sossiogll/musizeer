@@ -14,7 +14,7 @@ registry starts without providers (and says so in the log), never a crash.
 from __future__ import annotations
 import logging
 
-from musizerr_sdk.interfaces import (
+from musizeer_sdk.interfaces import (
     PROVIDER_API_VERSION,
     DownloadProvider,
     IdentificationProvider,
@@ -23,7 +23,7 @@ from musizerr_sdk.interfaces import (
     StorageProvider,
     SyncProvider,
 )
-from musizerr_sdk.manifest import ROLES
+from musizeer_sdk.manifest import ROLES
 from services.config_manager import get_config
 from services.gateway_client import (
     EgressGrants,
@@ -185,11 +185,13 @@ class ProviderRegistry:
         transport = SocketTransport(
             self._gateway.run_dir / item.socket, item.name, lambda: get_config().workspace_dir,
         )
+        context = GatewayProviderContext(item.name, declared, self._grants)
         try:
-            proxy = connect(transport, GatewayProviderContext(item.name, declared, self._grants))
+            proxy = connect(transport, context)
         except ProviderCallFailed as exc:
             raise ValueError(f"it did not describe itself: {exc}") from exc
         manifest = proxy.manifest
+        context.declare_settings(manifest.config_schema)  # which of its settings are folders (ADR-0008)
         disagreements = [
             what for what, same in (
                 ("name", manifest.name == item.name == item.declared["name"]),

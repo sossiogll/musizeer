@@ -1,6 +1,6 @@
 # Architecture overview
 
-This page is the map of Musizerr: the processes that run, how a request travels through them, how the providers are
+This page is the map of Musizeer: the processes that run, how a request travels through them, how the providers are
 isolated, and how the main flows work. It is an overview. Each part links to the document that holds the detail, and the
 rules the code is held to are in the guide at the root of the repository and in the
 [decision records](adr/README.md).
@@ -93,13 +93,13 @@ How to read it:
 
 ## Runtime
 
-`docker-compose.yaml` runs the images published on GHCR (`musizerr`, `musizerr-gateway`, `musizerr-frontend`).
+`docker-compose.yaml` runs the images published on GHCR (`musizeer`, `musizeer-gateway`, `musizeer-frontend`).
 `docker-compose.build.yml` builds them from the checkout and `docker-compose.dev.yml` mounts the sources.
 [`deployment.md`](deployment.md) is the guide to running it.
 
 | Service | What it is |
 |---|---|
-| `frontend` | nginx. Serves the static web app and proxies `/api/` to `BACKEND_URL` (default `http://app:8000`), resolving the name again every few seconds so a recreated API container is found. It drops the `/api` prefix, forwards the original scheme and host, and gives `/api/progress` (server-sent events) no buffering and an hour of silence. |
+| `frontend` | nginx. Serves the static web app and proxies `/api/` to `MUSIZEER_BACKEND_URL` (default `http://app:8000`), resolving the name again every few seconds so a recreated API container is found. It drops the `/api` prefix, forwards the original scheme and host, and gives `/api/progress` (server-sent events) no buffering and an hour of silence. |
 | `app` | The API (uvicorn). Healthy when `/health` answers and says the database answers. |
 | `worker`, `worker-jobs`, `worker-maintenance` | The three Celery workers, one per queue ([Background work](#background-work)). |
 | `beat` | The one beat. In development it is embedded in `worker-maintenance` (`-B`). |
@@ -126,7 +126,7 @@ flowchart TB
     services["services/<br>use cases shared by routes and workers,<br>the provider registry, proxy and transport,<br>the gateway client, settings, credentials"]
     db["db/<br>models, stores, the engine,<br>Alembic migrations"]
     core["core/<br>pure domain rules:<br>matching, merge, identity, download resolver,<br>policies, states, routines"]
-    sdk["musizerr_sdk<br>the provider contract,<br>models and codec (standard library only)"]
+    sdk["musizeer_sdk<br>the provider contract,<br>models and codec (standard library only)"]
 
     routes --> services
     workers --> services
@@ -195,7 +195,7 @@ one beat ([`workers.md`](workers.md)).
 
 | Store | What it holds |
 |---|---|
-| **PostgreSQL** (the default) or a **SQLite** file | Users, sessions, settings, tracks and their identifiers (one table of identifiers), downloads and download requests, the library, favorites, playlists, installed providers and their sources, routine runs and library jobs. Every stored credential is sealed with `CREDENTIALS_KEY` ([`credentials.md`](credentials.md)). One code serves both engines ([`postgresql.md`](postgresql.md)); schema changes are Alembic migrations that run in `init` ([`migrations.md`](migrations.md)). |
+| **PostgreSQL** (the default) or a **SQLite** file | Users, sessions, settings, tracks and their identifiers (one table of identifiers), downloads and download requests, the library, favorites, playlists, installed providers and their sources, routine runs and library jobs. Every stored credential is sealed with `MUSIZEER_CREDENTIALS_KEY` ([`credentials.md`](credentials.md)). One code serves both engines ([`postgresql.md`](postgresql.md)); schema changes are Alembic migrations that run in `init` ([`migrations.md`](migrations.md)). |
 | **Redis** | The Celery queues and results; the progress and providers-changed channels; the counters that let several processes agree: the slots of providers that limit concurrent downloads, the rest period of a failing provider, the workers' heartbeats and the sign-in rate limit. Nothing in Redis is the only copy of anything that matters. |
 | **Shared volume** | The workspaces and, depending on the storage provider that is configured, the library. |
 
@@ -204,7 +204,7 @@ The stored URLs of covers and streams are never absolute: they are references th
 
 ## The provider gateway and the sandboxes
 
-A **provider** is a program that implements one or more roles of the contract in `sdk/` (`musizerr_sdk`): metadata,
+A **provider** is a program that implements one or more roles of the contract in `sdk/` (`musizeer_sdk`): metadata,
 download, storage, sync, lyrics, identification. It lives in its own repository, is built into an OCI image on the base
 image of this repository, is published on a registry, and is listed in a **catalog**. The core never names one.
 
@@ -244,7 +244,7 @@ flowchart LR
 - **The database is the only record of what is installed.** The host *pushes* the desired set to the gateway at start,
   after every change, and whenever the gateway restarted. The gateway runs nothing until it is told.
 - **The gateway** ([`gateway.md`](gateway.md)) pulls each image **by digest**, checks every hash and the
-  `org.musizerr.provider.*` labels against what was approved, unpacks the layers once, and runs one long-lived process
+  `org.musizeer.provider.*` labels against what was approved, unpacks the layers once, and runs one long-lived process
   per provider in a **bubblewrap sandbox**: a read-only image root, a private `/tmp`, every namespace unshared, no
   capability, an empty environment, memory, file and task limits, and an inner seccomp filter. If no sandbox can be
   made, no provider runs: there is no unconfined fallback.
@@ -281,7 +281,7 @@ sequenceDiagram
 - A call is a request frame: method, arguments, the **auth session** for this call, and a **snapshot of the provider's
   context** (its settings, the timeouts, the public URL prefix). The provider never calls back into the host, and a
   setting changed in the UI is seen by the next call.
-- Every value goes through the lossless codec of the contract (`musizerr_sdk.wire`). Streams (a library listing, a
+- Every value goes through the lossless codec of the contract (`musizeer_sdk.wire`). Streams (a library listing, a
   file read) are produced as the host consumes them.
 - The runner classifies a failure where the type of the exception exists (timeout, HTTP status, network), so the host
   reads a `kind` and never a provider's raw exception. A connection that cannot be opened or breaks is `unreachable`.
@@ -308,13 +308,15 @@ values change; the grants expire if the host stops renewing them. A sandbox cann
 ### Workspaces: how files cross the boundary
 
 A provider never sees a host path. For every call that produces or reads a file, the host creates an empty directory
-under the workspace directory, **in the folder of that provider** (`<workspace_dir>/<provider>/<random>`), and passes
+under the working folder (the `workspace_dir` setting: a root folder plus a path, no default), **in the folder of that provider** (`<working folder>/<provider>/<random>`), and passes
 it in. The provider writes there and returns only a **name relative to it**. The sandbox of a provider sees only its own
 folder, as `/workspace`. The host then validates what it finds (names that escape the workspace are rejected), decides
 the final library path, and removes the workspace when the operation ends. A file that goes from one provider to
 another (downloaded by one, stored by another) is staged into the second provider's folder for the duration of the
-call. A provider that has to read or write the user's own folders declares which setting names them, and the gateway
-grants those folders after checking them. See
+call. A provider that has to read or write the user's own folders declares which `folder` setting names them (the
+administrator chooses a root folder and a path inside it; the provider gets the absolute path), and the gateway grants
+those folders after checking them against the root folders the host declared. While the working folder, or the storage
+provider's library folder, is not set, downloads are blocked (`working_folder_not_set`, `library_folder_not_set`). See
 [ADR-0003](adr/0003-provider-file-exchange-workspace.md) and [`gateway.md`](gateway.md#sockets-volumes-and-permissions).
 
 ## Main flows
@@ -469,11 +471,11 @@ or **followed** (a read-only mirror of a provider's playlist, which can be dupli
 
 There are **two different things** called an account, and they never mix.
 
-1. **Users of Musizerr** ([`permissions.md`](permissions.md)). Authentication can be off, and then the instance is one
+1. **Users of Musizeer** ([`permissions.md`](permissions.md)). Authentication can be off, and then the instance is one
    owner. With it on, users sign in with a password, or through a linked provider account
    ([`provider-login.md`](provider-login.md)); a session is a short-lived access token plus a rotating refresh token.
    The roles are admin and user, and the UI reads *capabilities* from the server instead of applying rules itself.
-   The key that signs sessions is `AUTH_SECRET`.
+   The key that signs sessions is `MUSIZEER_AUTH_SECRET`.
 2. **Accounts at the providers' services**. Each provider *declares* whose account it works with
    (`AccountModel`: none, personal, personal with a shared fallback, or system) and how it signs in (OAuth2, a login
    form, an API key, or a program that captures it). One rule routes every *read* of a credential, and a *write* always

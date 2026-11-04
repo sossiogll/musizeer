@@ -6,7 +6,7 @@ from sqlalchemy import delete, update
 from sqlmodel import Session, select
 
 from core.auth import AccountTarget, StoredCredential
-from musizerr_sdk.auth import AccountModel
+from musizeer_sdk.auth import AccountModel
 from . import credential_cipher
 from .models import NO_USER, ProviderCredential, _now
 from .upsert import upsert
@@ -37,7 +37,7 @@ class CredentialStore:
     Unico punto di accesso alle credenziali dei provider.
     AuthManager dipende da questa classe — non accede mai al DB direttamente.
 
-    Every credential is stored SEALED (``db/credential_cipher.py``, ``CREDENTIALS_KEY``): a write
+    Every credential is stored SEALED (``db/credential_cipher.py``, ``MUSIZEER_CREDENTIALS_KEY``): a write
     seals, a read opens. One that the configured keys cannot open (the key is gone or wrong, the
     text was altered, or it is in clear) is, for every reader, a credential that is not there: the
     account is "not connected", the app has no OAuth client, the API key is not set. Connecting it
@@ -45,7 +45,7 @@ class CredentialStore:
     holds the registered ones cannot be read: it starts again from that account, as if it were
     the first). Disconnecting one that cannot be read removes it.
 
-    The ONE routing rule (``musizerr_sdk.auth.AccountModel``), for what a provider's
+    The ONE routing rule (``musizeer_sdk.auth.AccountModel``), for what a provider's
     calls READ (an OAuth2 token, a login):
 
     - ``PERSONAL``: the user's own row, never the shared one;

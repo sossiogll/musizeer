@@ -14,7 +14,6 @@ Task di manutenzione, provider-agnostici, che compongono più domini di provider
 from __future__ import annotations
 
 import logging
-import os
 import random
 import time
 from uuid import uuid4
@@ -29,18 +28,18 @@ from db.download_store import find_open_download, latest_landing
 from db.models import Download, TrackRecord
 from db.settings_store import SettingsRepository
 from db.track_store import load_track
-from musizerr_sdk.models import Track
+from musizeer_sdk.models import Track
 from core.settings_resolver import namespace_provider_key
 from core.backoff import retry_delay
 from core.tagging import make_probe_audio
-from core import download_states as ds
+from core import download_states as ds, environment
 from services.auth import auth_manager_for
 from services.credentials import has_own_account, own_store, shared_store
 from services.delegation import poll_for_requested_track
 from services.enrichment import check_sync_availability
 from services.progress import publish_download_progress
 from services.stream import resolve_sync_id
-from services import held_uploads, library_reconcile, playlist_downloads, update_check
+from services import folders, held_uploads, library_reconcile, playlist_downloads, update_check
 from services.workspace import open_workspace, remove_stale_workspaces
 
 from .celery_app import celery, get_config, get_registry
@@ -51,7 +50,7 @@ logger = logging.getLogger(__name__)
 # qui SOLO come lock leggero e a scadenza per far coesistere lo sweep di
 # sicurezza (sweep_delegations) con le chain di riconciliazione già vive
 # senza duplicarle. Vedi start_reconciliation/sweep_delegations più sotto.
-_REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+_REDIS_URL = environment.redis_url()
 _redis_client = redis_lib.Redis.from_url(_REDIS_URL)
 
 
@@ -76,6 +75,12 @@ def verify_full_sync(sync_name: str | None = None) -> dict:
     if storage is None:
         return {"status": "error", "detail": "storage provider non trovato"}
 
+    # The probe writes through the storage provider, from the working folder (ADR-0008): refused while a folder is not set.
+    with Session(engine) as session:
+        blocking = folders.blocked(session, config, registry)
+    if blocking is not None:
+        return {"status": "error", "error_code": blocking.error_code, "detail": blocking.message}
+
     with Session(engine) as session:
         store = shared_store(session)
         auth = auth_manager_for(store)
@@ -86,13 +91,13 @@ def verify_full_sync(sync_name: str | None = None) -> dict:
             return {"status": "error", "detail": f"autenticazione fallita: {exc}"}
 
         token = uuid4().hex
-        marker = f"musizerr-probe-{token}"
+        marker = f"musizeer-probe-{token}"
         # Track "canary" per il match universale: titolo/artista/album unici +
         # durata danno a match_track le conferme che richiede oltre al titolo.
         canary_track = Track(title=marker, artist=marker, album=marker, duration_ms=1000)
         # Sotto remote_base_path (dove vanno i download veri); niente dot-folder
         # (i sync provider possono ignorare le cartelle nascoste).
-        rel = f"Musizerr Probe/{marker}.ogg"
+        rel = f"Musizeer Probe/{marker}.ogg"
 
         with open_workspace(config.workspace_dir, storage.name) as workspace:
             if not make_probe_audio(marker, marker, album=marker, path=str(workspace.path / "probe.ogg")):
@@ -150,7 +155,7 @@ def reconcile_delegation(download_id: str, chain: str | None = None) -> dict:
 
     Robustezza (self-healing): un fallimento TRANSITORIO — autenticazione
     che solleva, o poll_delegation che solleva per segnalare "il sistema
-    esterno non ha risposto" (vedi il contratto in musizerr_sdk.interfaces) — non
+    esterno non ha risposto" (vedi il contratto in musizeer_sdk.interfaces) — non
     deve mai interrompere la chain né finalizzare il record come failed:
     un'irraggiungibilità del delegato non dice nulla sull'esito reale del
     download. Si ri-accoda sempre in questi casi, SENZA consumare il
@@ -274,7 +279,7 @@ def _expire_unanswered(download_id: str, started, config) -> bool:
 
 
 def _reconcile_lock_key(download_id: str) -> str:
-    return f"musizerr:delegation-reconcile-lock:{download_id}"
+    return f"musizeer:delegation-reconcile-lock:{download_id}"
 
 
 def _lock_ttl(config, countdown: int) -> int:
@@ -395,7 +400,7 @@ def _apply_delegation_status(download_id, provider, prov_session, status, config
 
     # Risoluzione conflitti (policy qualità, metadata-level host-independent).
     # Gated dal toggle "dedup_enabled" (default: off) — senza questo controllo
-    # musizerr cancellava file via l'API del delegato anche quando l'utente
+    # musizeer cancellava file via l'API del delegato anche quando l'utente
     # aveva la dedup esplicitamente disattivata. Se disabilitata il conflitto
     # resta ds.CONFLICT: nessuna eliminazione automatica, il download andrà
     # in timeout (max-age) se non risolto altrove.
@@ -724,7 +729,7 @@ def _unlike_on_origin(provider, provider_track_id: str | None, store, auth_manag
     """(outcome, reason) of taking the like ``provider_track_id`` back on
     ``provider`` with the user's OWN account only: ``store`` holds no system
     fallback and the authentication never falls back to an app-only token."""
-    from musizerr_sdk.capabilities import CAPABILITY_UNLIKE_SAVED_TRACK
+    from musizeer_sdk.capabilities import CAPABILITY_UNLIKE_SAVED_TRACK
     from services.credentials import own_missing_capabilities
 
     if provider is None or not provider_track_id or not provider.supports_unlike_saved_track():
@@ -834,15 +839,20 @@ def sweep_workspaces() -> dict:
     file in attesa di upload da più di ``held_upload_max_age_hours``
     (services/held_uploads.py)."""
     config = get_config()
+    try:
+        workspace_dir = config.workspace_dir
+    except folders.FoldersNotReady as blocking:
+        # No working folder, nothing to sweep.
+        return {"status": "ok", "removed": 0, "held_removed": 0, "skipped": blocking.error_code}
     max_age = max(2 * config.download_hard_time_limit_seconds, _WORKSPACE_MIN_AGE_SECONDS)
-    removed = remove_stale_workspaces(config.workspace_dir, max_age)
-    held = held_uploads.remove_stale(config.workspace_dir, config.held_upload_max_age_hours * 3600)
+    removed = remove_stale_workspaces(workspace_dir, max_age)
+    held = held_uploads.remove_stale(workspace_dir, config.held_upload_max_age_hours * 3600)
     return {"status": "ok", "removed": removed, "held_removed": held}
 
 
 @celery.task(name="workers.maintenance.check_for_updates")
 def check_for_updates() -> dict:
-    """Reads the releases of Musizerr and keeps the newer ones with their metadata (services/update_check.py):
+    """Reads the releases of Musizeer and keeps the newer ones with their metadata (services/update_check.py):
     Administration judges them against what runs. A feed that cannot be read (the repository is private or
     renamed, a rate limit, GitHub or the network unreachable) is an ``ok`` run with ``state: "unavailable"`` and
     its ``reason``; only an answer that is not a list of releases fails the run."""
@@ -866,7 +876,7 @@ def delete_playlist_tracks(user_id: str, track_ids: list[str]) -> dict:
     """I file che una playlist aveva fatto scaricare, cancellati insieme a lei
     su richiesta del proprietario (``services.playlist_downloads``): solo quelli
     che nessuna playlist e nessun preferito tiene, e solo file scaricati da
-    Musizerr per questo utente."""
+    Musizeer per questo utente."""
     registry = get_registry()
     with Session(engine) as session:
         shared = auth_manager_for(shared_store(session))
