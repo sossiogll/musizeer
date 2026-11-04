@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FOLDERS_READY, foldersMissing } from "@/test/roots";
-import { folderPathProblem, joinFolder, missingFolders, readFolderValue } from "./folders";
+import { folderPathProblem, joinFolder, missingFolders, readFolderValue, relativeToRoot } from "./folders";
 
 describe("folderPathProblem: the rule of a path inside a root folder", () => {
   it.each(["", "Music", "Music/Rock", ".musizeer-work", "a b/c.d", "back\\slash"])("%j is usable", (path) => {
@@ -30,6 +30,19 @@ describe("joinFolder", () => {
   it("joins a root and a path with one slash", () => {
     expect(joinFolder("/library", "Music/Rock")).toBe("/library/Music/Rock");
     expect(joinFolder("/library/", "Music")).toBe("/library/Music");
+  });
+});
+
+describe("relativeToRoot", () => {
+  it("is the path inside the root, the inverse of joinFolder", () => {
+    expect(relativeToRoot("/library", "/library/Music/Rock")).toBe("Music/Rock");
+    expect(relativeToRoot("/library/", "/library/Music")).toBe("Music");
+    expect(relativeToRoot("/library", "/library")).toBe("");
+  });
+
+  it("is null for a folder outside the root, even one that shares its prefix", () => {
+    expect(relativeToRoot("/library", "/library2/Music")).toBeNull();
+    expect(relativeToRoot("/library", "/other")).toBeNull();
   });
 });
 

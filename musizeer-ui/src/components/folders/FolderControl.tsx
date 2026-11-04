@@ -1,6 +1,7 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, Wand2, X } from "lucide-react";
+import { AlertTriangle, FolderSearch, Wand2, X } from "lucide-react";
+import { FolderPicker } from "@/components/folders/FolderPicker";
 import { ApiErrorMessage } from "@/components/ErrorMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRoots } from "@/hooks/useRoots";
 import { useI18n } from "@/i18n";
-import { folderPathProblem, joinFolder, readFolderValue } from "@/lib/folders";
+import { folderPathProblem, joinFolder, readFolderValue, relativeToRoot } from "@/lib/folders";
 import type { FolderValue } from "@/types";
 
 interface FolderControlProps {
@@ -35,6 +36,7 @@ export function FolderControl({ value, onChange, label, suggestedPath, disabled,
   const { t } = useI18n();
   const ids = { root: useId(), path: useId(), note: useId() };
   const { data, isLoading, error } = useRoots();
+  const [browsing, setBrowsing] = useState(false);
   const current = readFolderValue(value);
 
   if (isLoading) return <Skeleton className="h-9 w-full max-w-xl" />;
@@ -121,8 +123,28 @@ export function FolderControl({ value, onChange, label, suggestedPath, disabled,
         )}
       </div>
 
-      {(current || (root && suggestion)) && (
+      {root && browsing && (
+        // Scoped to the root: it opens there and has nothing above it. Opening a folder fills the path relative to the root.
+        <FolderPicker
+          key={root.id}
+          scope={root.path}
+          value={joinFolder(root.path, path)}
+          disabled={disabled}
+          onChange={(picked) => {
+            const relative = relativeToRoot(root.path, picked);
+            if (relative !== null) onChange({ root_id: root.id, path: relative });
+          }}
+        />
+      )}
+
+      {(root || current) && (
         <div className="flex flex-wrap gap-2">
+          {root && (
+            <Button type="button" variant="outline" size="sm" disabled={disabled} aria-expanded={browsing} onClick={() => setBrowsing(!browsing)}>
+              <FolderSearch aria-hidden />
+              {t(browsing ? "folders.control.closeBrowse" : "folders.control.browse")}
+            </Button>
+          )}
           {root && suggestion && (
             <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => onChange({ root_id: root.id, path: suggestion })}>
               <Wand2 aria-hidden />

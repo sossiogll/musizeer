@@ -16,12 +16,24 @@ interface FolderPickerProps {
   value: string;
   onChange: (path: string) => void;
   disabled?: boolean;
+  /**
+   * Limits the picker to this folder (the path of a root folder): it opens there, lists only what is inside it and has
+   * nothing above it to go back to. The path cannot be typed then.
+   */
+  scope?: string;
 }
 
-/** The places to go back to from a folder: the volumes, the volume itself and each folder down to `path`. */
-export function breadcrumbs(browse: RootBrowse): { path: string | null; name: string }[] {
-  if (!browse.path || !browse.volume) return [];
-  const mount = browse.volume.mount_point;
+/** Whether `path` is `base` or lies under it (both absolute and normalized). */
+const within = (path: string, base: string) => path === base || path.startsWith(`${base.replace(/\/+$/, "")}/`);
+
+/**
+ * The places to go back to from a folder: the volume itself (or `base`, when given) and each folder down to `path`.
+ * Nothing above the starting point is ever offered.
+ */
+export function breadcrumbs(browse: RootBrowse, base?: string): { path: string | null; name: string }[] {
+  const start = base ?? browse.volume?.mount_point;
+  if (!browse.path || !start || !within(browse.path, start)) return [];
+  const mount = start;
   const crumbs: { path: string | null; name: string }[] = [{ path: mount, name: mount }];
   let walked = mount;
   for (const part of browse.path.slice(mount.length).split("/").filter(Boolean)) {
@@ -37,12 +49,12 @@ export function breadcrumbs(browse: RootBrowse): { path: string | null; name: st
  * a path outside a volume cannot be reached by clicking; one that is typed is checked by the server when it is saved.
  * Opening a folder chooses it; the path can also be typed.
  */
-export function FolderPicker({ value, onChange, disabled }: FolderPickerProps) {
+export function FolderPicker({ value, onChange, disabled, scope }: FolderPickerProps) {
   const { t, locale } = useI18n();
   const errorText = useErrorText();
   const ids = { path: useId(), list: useId() };
   // The folder being looked at (null: the mounted volumes); the chosen path is `value`.
-  const [location, setLocation] = useState<string | null>(null);
+  const [location, setLocation] = useState<string | null>(scope ?? null);
   const { data, isFetching, error } = useQuery({
     queryKey: queryKeys.rootBrowse(location),
     queryFn: () => browseRoots(location),
@@ -51,14 +63,17 @@ export function FolderPicker({ value, onChange, disabled }: FolderPickerProps) {
   });
 
   const open = (path: string | null) => {
+    // A scoped picker never leaves its folder, whatever it is asked.
+    if (scope && (path === null || !within(path, scope))) return;
     setLocation(path);
     if (path) onChange(path);
   };
   const failure = error ? classifyError(error).body : null;
-  const crumbs = data ? breadcrumbs(data) : [];
+  const crumbs = data ? breadcrumbs(data, scope) : [];
 
   return (
     <div className="space-y-3">
+      {!scope && (
       <div className="space-y-1.5">
         <label htmlFor={ids.path} className="text-sm font-medium">
           {t("roots.dialog.path")}
@@ -86,12 +101,15 @@ export function FolderPicker({ value, onChange, disabled }: FolderPickerProps) {
         </div>
         <p className="text-xs text-muted-foreground">{t("roots.dialog.pathHint")}</p>
       </div>
+      )}
 
       <nav aria-label={t("roots.picker.location")}>
         <ol className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
-          <Crumb current={location === null} onSelect={() => open(null)}>
-            {t("roots.picker.volumes")}
-          </Crumb>
+          {!scope && (
+            <Crumb current={location === null} onSelect={() => open(null)}>
+              {t("roots.picker.volumes")}
+            </Crumb>
+          )}
           {crumbs.map((crumb, index) => (
             <Crumb key={crumb.path} current={index === crumbs.length - 1} onSelect={() => open(crumb.path)} mono>
               {crumb.name}

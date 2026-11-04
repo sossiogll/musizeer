@@ -1079,6 +1079,8 @@ export const en = {
       rootRefused: "This root folder is refused and cannot be used: {{reason}}",
       useSuggestion: "Use {{path}}",
       clear: "Clear",
+      browse: "Browse…",
+      closeBrowse: "Close browser",
     },
     pathProblem: {
       too_long: "That path is too long.",
@@ -2673,6 +2675,8 @@ export const it: Translations<typeof en> = {
       rootRefused: "Questa cartella radice è rifiutata e non si può usare: {{reason}}",
       useSuggestion: "Usa {{path}}",
       clear: "Svuota",
+      browse: "Sfoglia…",
+      closeBrowse: "Chiudi il selettore",
     },
     pathProblem: {
       too_long: "Quel percorso è troppo lungo.",

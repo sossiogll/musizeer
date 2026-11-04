@@ -29,6 +29,13 @@ export function joinFolder(rootPath: string, path: string): string {
   return `${rootPath.replace(/\/+$/, "")}/${path}`;
 }
 
+/** The path of `folder` inside the root folder at `rootPath` (the inverse of `joinFolder`), or null when it is not inside it. */
+export function relativeToRoot(rootPath: string, folder: string): string | null {
+  const base = rootPath.replace(/\/+$/, "");
+  if (folder === base) return "";
+  return folder.startsWith(`${base}/`) ? folder.slice(base.length + 1) : null;
+}
+
 /** The value a `folder` setting holds, when it holds one (the API sends `null` for an unset folder). */
 export function readFolderValue(raw: unknown): FolderValue | null {
   if (!raw || typeof raw !== "object") return null;

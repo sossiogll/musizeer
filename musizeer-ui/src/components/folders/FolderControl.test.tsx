@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { renderPage } from "@/test/render";
 import { root } from "@/test/roots";
 import type { RootFolder } from "@/types";
@@ -10,7 +10,14 @@ vi.mock("@/lib/connectivity", async () => (await import("@/test/connectivity-moc
 vi.mock("@/lib/api-client", async () => ({
   ...(await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client")),
   getRoots: async () => ({ roots, folders: [] }),
+  browseRoots: (...a: unknown[]) => mockBrowse(...a),
 }));
+
+const mockBrowse = vi.fn();
+const volume = { mount_point: "/downloads", fs_type: "ext4" };
+const listing = (path: string, names: string[]) => ({
+  path, parent: null, volume, truncated: false, directories: names.map((name) => ({ name, path: `${path}/${name}` })),
+});
 
 const onChange = vi.fn();
 const onAddRoot = vi.fn();
@@ -99,6 +106,52 @@ describe("FolderControl", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Clear" }));
     expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  describe("Browse, scoped to the selected root", () => {
+    beforeEach(() => {
+      mockBrowse.mockReset().mockImplementation(async (path: string | null) => {
+        if (path === "/downloads") return listing("/downloads", ["Music"]);
+        if (path === "/downloads/Music") return listing("/downloads/Music", ["Rock"]);
+        throw new Error(`outside the root: ${path}`);
+      });
+    });
+
+    it("has no Browse until a root is chosen", async () => {
+      renderControl();
+
+      await screen.findByRole("group", { name: "Working folder" });
+      expect(screen.queryByRole("button", { name: "Browse…" })).not.toBeInTheDocument();
+    });
+
+    it("opens at the root's path and picking a folder fills the path relative to the root", async () => {
+      renderControl({ value: { root_id: "r1", path: "" } });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse…" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Music" }));
+      expect(onChange).toHaveBeenLastCalledWith({ root_id: "r1", path: "Music" });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Rock" }));
+      expect(onChange).toHaveBeenLastCalledWith({ root_id: "r1", path: "Music/Rock" });
+      expect(mockBrowse).toHaveBeenCalledWith("/downloads");
+    });
+
+    it("cannot leave the root: no volumes, no typed path, nothing above the root to go back to", async () => {
+      renderControl({ value: { root_id: "r1", path: "" } });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse…" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Music" }));
+      await screen.findByRole("button", { name: "Rock" });
+
+      const crumbs = screen.getByRole("navigation", { name: "Folder location" });
+      expect(within(crumbs).queryByRole("button", { name: "Volumes" })).not.toBeInTheDocument();
+      expect(within(crumbs).getAllByRole("button").map((b) => b.textContent)).toEqual(["/downloads"]);
+      expect(screen.queryByLabelText("Path", { exact: true })).not.toBeInTheDocument();
+      fireEvent.click(within(crumbs).getByRole("button", { name: "/downloads" }));
+      expect(await screen.findByRole("button", { name: "Music" })).toBeInTheDocument();
+      // Only ever the root and what is inside it was asked of the gateway.
+      for (const [asked] of mockBrowse.mock.calls) expect(String(asked).startsWith("/downloads")).toBe(true);
+    });
   });
 
   it("warns about a root folder the gateway refused", async () => {
