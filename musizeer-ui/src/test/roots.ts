@@ -50,6 +50,8 @@ export const checkReport = (overrides: Partial<RootCheck> = {}): RootCheck => ({
   },
   gateway_error: null,
   application: { exists: true, writable: true },
+  checks: [{ code: "gateway_ok", level: "ok", params: {} }, { code: "application_ok", level: "ok", params: {} }],
+  state: "ok",
   ok: true,
   ...overrides,
 });

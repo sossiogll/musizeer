@@ -1000,6 +1000,16 @@ export interface GatewayInspection {
   write_test?: { ok?: boolean; error?: string };
 }
 
+/** How serious a finding of a Check is: `info` is a note that needs no action. */
+export type RootCheckLevel = "ok" | "info" | "warning" | "error";
+
+/** One finding of a Check: a stable `code` the UI words, its `level` and the values the sentence needs. */
+export interface RootCheckFinding {
+  code: string;
+  level: RootCheckLevel;
+  params: Record<string, string>;
+}
+
 /** GET /roots/{id}/check: the explicit Check of a root. */
 export interface RootCheck {
   root: RootFolder;
@@ -1007,6 +1017,9 @@ export interface RootCheck {
   gateway: GatewayInspection | null;
   gateway_error: string | null;
   application: { exists: boolean; writable: boolean };
+  checks: RootCheckFinding[];
+  /** The worst level of `checks`: what the badge shows. */
+  state: RootCheckLevel;
   ok: boolean;
 }
 
