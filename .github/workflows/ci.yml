@@ -153,6 +153,16 @@ jobs:
       # a backend that is recreated or renamed (BACKEND_URL), nginx -t.
       - run: scripts/test-frontend-image.sh
 
+  app-image:
+    name: app image (production)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # The production stage has none of the development requirements: what the workers import at start must be there.
+      - run: docker build --target production -t musizeer-ci-app .
+      - run: docker run --rm --entrypoint python musizeer-ci-app -c "import celery, kombu.transport.redis, psycopg, uvicorn"
+      - run: docker run --rm --entrypoint pip musizeer-ci-app check
+
   compose:
     name: compose files
     runs-on: ubuntu-latest
