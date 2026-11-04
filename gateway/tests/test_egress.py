@@ -103,6 +103,51 @@ def test_a_name_that_does_not_resolve_is_refused_with_a_reason(monkeypatch):
         resolve("nowhere.invalid", 443, False)
 
 
+def test_a_temporary_resolver_failure_is_asked_again(monkeypatch):
+    # One lost DNS reply must not fail a provider call: EAI_AGAIN is asked again.
+    answers = [socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution")] * 2
+    calls = []
+
+    def flaky(host, port, **kwargs):
+        calls.append(host)
+        if answers:
+            raise answers.pop()
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", flaky)
+    monkeypatch.setattr(egress.time, "sleep", lambda seconds: None)
+    assert resolve("api.example.com", 443, False) == ["93.184.216.34"]
+    assert len(calls) == 3
+
+
+def test_a_resolver_that_keeps_failing_for_now_is_refused_after_the_retries(monkeypatch):
+    calls = []
+
+    def down(host, port, **kwargs):
+        calls.append(host)
+        raise socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution")
+
+    monkeypatch.setattr(socket, "getaddrinfo", down)
+    monkeypatch.setattr(egress.time, "sleep", lambda seconds: None)
+    with pytest.raises(PermissionsError, match="cannot resolve api.example.com"):
+        resolve("api.example.com", 443, False)
+    assert len(calls) == len(egress.RESOLVE_RETRY_DELAYS) + 1
+
+
+def test_a_name_that_does_not_exist_is_not_asked_again(monkeypatch):
+    calls = []
+
+    def missing(host, port, **kwargs):
+        calls.append(host)
+        raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+    monkeypatch.setattr(socket, "getaddrinfo", missing)
+    monkeypatch.setattr(egress.time, "sleep", lambda seconds: pytest.fail("a missing name is not retried"))
+    with pytest.raises(PermissionsError):
+        resolve("nowhere.invalid", 443, False)
+    assert calls == ["nowhere.invalid"]
+
+
 # ------------------------------------------------------------------
 # The proxy
 # ------------------------------------------------------------------

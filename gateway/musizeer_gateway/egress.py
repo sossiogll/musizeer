@@ -60,6 +60,10 @@ MAX_GRANTS = 64
 CONNECT_TIMEOUT = 10.0
 IDLE_TIMEOUT = 600.0
 REMEMBERED_REFUSALS = 50
+# A resolver that answers "try again" (EAI_AGAIN: a lost or late DNS reply) is asked again this many times, after these
+# pauses, before the destination is refused: one lost reply must not fail a provider call (a library sync of thousands of
+# pages makes thousands of lookups). A name that does not exist is refused at once.
+RESOLVE_RETRY_DELAYS = (0.2, 0.5, 1.0)
 
 PUBLIC, PRIVATE, NEVER = "public", "private", "never"
 
@@ -185,13 +189,25 @@ class EgressPolicy:
         return [{"at": item.at, "target": item.target, "reason": item.reason} for item in self.refused]
 
 
+def _getaddrinfo(host: str, port: int) -> list:
+    """``socket.getaddrinfo``, asked again on a temporary failure (``RESOLVE_RETRY_DELAYS``); raises
+    :class:`PermissionsError` with the reason when the name does not resolve."""
+    delays = list(RESOLVE_RETRY_DELAYS)
+    while True:
+        try:
+            return socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except socket.gaierror as exc:
+            if exc.errno != socket.EAI_AGAIN or not delays:
+                raise PermissionsError(f"cannot resolve {host}: {exc.strerror or exc}") from exc
+            delay = delays.pop(0)
+            logger.info("resolving %s failed for now (%s): asking again in %.1f s", host, exc.strerror or exc, delay)
+            time.sleep(delay)
+
+
 def resolve(host: str, port: int, private_ok: bool) -> list[str]:
     """The addresses of ``host`` the proxy may connect to; raises :class:`PermissionsError`
     when there are none, with the reason."""
-    try:
-        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise PermissionsError(f"cannot resolve {host}: {exc.strerror or exc}") from exc
+    infos = _getaddrinfo(host, port)
     allowed: list[str] = []
     seen: set[str] = set()
     for info in infos:
