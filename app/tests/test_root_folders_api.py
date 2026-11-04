@@ -309,6 +309,65 @@ def test_the_check_says_when_the_gateway_could_not_be_asked(world):
     report = world.client.get(f"/roots/{root.id}/check", headers=world.admin).json()
 
     assert report["gateway"] is None and report["gateway_error"] and report["ok"] is False
+    assert report["state"] == "error" and _levels(report)["gateway_unreachable"] == "error"
+
+
+def _levels(report):
+    return {item["code"]: item["level"] for item in report["checks"]}
+
+
+def test_a_root_only_a_provider_folder_uses_need_not_be_seen_by_the_application(world):
+    root = add_root(world.engine, "/library")
+    store_provider_folder(world.engine, "foldered", "root_dir", root, "Music")
+
+    report = world.client.get(f"/roots/{root.id}/check", headers=world.admin).json()
+
+    assert report["application"]["exists"] is False
+    assert _levels(report) == {"gateway_ok": "ok", "application_not_needed": "info"}
+    assert report["state"] == "info" and report["ok"] is True
+
+
+def test_the_working_folders_root_the_application_cannot_see_is_an_error(world):
+    root = add_root(world.engine, "/downloads")
+    store_folder(world.engine, "workspace_dir", root, ".musizeer-work")
+
+    report = world.client.get(f"/roots/{root.id}/check", headers=world.admin).json()
+
+    assert _levels(report) == {"gateway_ok": "ok", "application_required_missing": "error"}
+    assert report["state"] == "error" and report["ok"] is False
+
+
+def test_a_root_nothing_uses_yet_is_informational(world):
+    root = add_root(world.engine, "/spare")
+
+    report = world.client.get(f"/roots/{root.id}/check", headers=world.admin).json()
+
+    assert _levels(report) == {"gateway_ok": "ok", "application_unused_missing": "info"}
+    assert report["state"] == "info"
+
+
+def test_a_root_the_application_sees_and_writes_is_ok(world, tmp_path):
+    root = add_root(world.engine, str(tmp_path))
+    store_folder(world.engine, "workspace_dir", root, "work")
+
+    report = world.client.get(f"/roots/{root.id}/check", headers=world.admin).json()
+
+    assert report["state"] == "ok" and _levels(report) == {"gateway_ok": "ok", "application_ok": "ok"}
+
+
+def test_a_gateway_refusal_is_an_error_with_its_reason(world, tmp_path):
+    root = add_root(world.engine, str(tmp_path))
+    world.gateway.inspections[str(tmp_path)] = {
+        "ok": True, "path": str(tmp_path), "exists": True, "directory": True, "writable": False, "mounted": True,
+        "reason": "read-only file system", "device": None, "mount_id": None, "mount_point": "/",
+        "fs_type": "ext4", "free_bytes": 1, "real_path": str(tmp_path),
+    }
+
+    report = world.client.get(f"/roots/{root.id}/check", headers=world.admin).json()
+
+    refused = next(item for item in report["checks"] if item["code"] == "gateway_refused")
+    assert refused["level"] == "error" and refused["params"] == {"reason": "read-only file system"}
+    assert report["state"] == "error"
 
 
 def test_the_picker_browses_through_the_gateway(world):

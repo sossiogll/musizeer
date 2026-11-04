@@ -2132,8 +2132,12 @@ components:
 
     RootCheck:
       type: object
-      required: [root, gateway, gateway_error, application, ok]
-      description: The explicit Check of a root.
+      required: [root, gateway, gateway_error, application, checks, state, ok]
+      description: >
+        The explicit Check of a root. `checks` lists each finding with its level and `state` is the worst of them,
+        which is what a badge shows. Whether the application has to see the root depends on what uses it: the working
+        folder does (the host reads and writes it), a provider's folder does not (only the sandboxed provider, through
+        the gateway, reaches it) and a root nothing uses yet needs nothing.
       properties:
         root:
           $ref: "#/components/schemas/RootFolder"
@@ -2153,9 +2157,37 @@ components:
               type: boolean
             writable:
               type: boolean
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/RootCheckFinding"
+        state:
+          $ref: "#/components/schemas/RootCheckLevel"
         ok:
           type: boolean
-          description: A writable directory on a mounted volume that the gateway does not refuse.
+          description: No finding is an error (`state` is `ok` or `info`).
+
+    RootCheckLevel:
+      type: string
+      enum: [ok, info, warning, error]
+      description: info is a note that needs no action; warning and error are problems.
+
+    RootCheckFinding:
+      type: object
+      required: [code, level, params]
+      properties:
+        code:
+          type: string
+          description: >
+            gateway_ok, gateway_unreachable (params.detail), gateway_refused (params.reason), application_ok,
+            application_required_missing, application_required_read_only, application_not_needed,
+            application_read_only_not_needed, application_unused_missing, application_unused_read_only.
+        level:
+          $ref: "#/components/schemas/RootCheckLevel"
+        params:
+          type: object
+          additionalProperties:
+            type: string
 
     GatewayInspection:
       type: object
