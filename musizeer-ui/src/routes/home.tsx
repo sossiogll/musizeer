@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Download as DownloadIc
 import { useCan } from "@/hooks/useCapabilities";
 import { useDownloadsSummary } from "@/hooks/useDownloadsSummary";
 import { useRetryFailed } from "@/hooks/useRetryFailed";
-import { useServerAction } from "@/hooks/useServerAction";
+import { useDownloadGate } from "@/hooks/useFolderStatus";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n";
@@ -32,7 +32,7 @@ function DownloadStatusCards() {
   const { t } = useI18n();
   const { data, isLoading } = useDownloadsSummary();
   const retryAll = useRetryFailed();
-  const server = useServerAction();
+  const gate = useDownloadGate();
 
   if (isLoading) {
     return (
@@ -70,8 +70,8 @@ function DownloadStatusCards() {
               size="sm"
               className="max-sm:size-11 max-sm:p-0"
               onClick={() => retryAll.mutate()}
-              disabled={retryAll.isPending || server.disabled}
-              title={server.reason ?? t("homeStatus.retryAll")}
+              disabled={retryAll.isPending || gate.disabled}
+              title={gate.reason ?? t("homeStatus.retryAll")}
             >
               {retryAll.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <RotateCcw aria-hidden />}
               <span className="max-sm:sr-only">{t("homeStatus.retryAll")}</span>

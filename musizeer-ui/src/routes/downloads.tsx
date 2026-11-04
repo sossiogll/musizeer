@@ -17,7 +17,7 @@ import { useWaitingCount } from "@/hooks/useDownloadApproval";
 import { useDownloadsSummary } from "@/hooks/useDownloadsSummary";
 import { useDownloadStates } from "@/hooks/useDownloadStates";
 import { useRetryFailed } from "@/hooks/useRetryFailed";
-import { useServerAction } from "@/hooks/useServerAction";
+import { useDownloadGate } from "@/hooks/useFolderStatus";
 import { usePublicProviders } from "@/hooks/usePublicProviders";
 import { useI18n, type MessageKey } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ export function DownloadsPage() {
   const [q] = useDebounce(filter.trim(), 400);
   const { data: summary } = useDownloadsSummary();
   const waiting = useWaitingCount();
-  const server = useServerAction();
+  const gate = useDownloadGate();
   const retryAll = useRetryFailed();
 
   // The Requests tab exists for a viewer the approval policy governs: nobody else has requests.
@@ -98,8 +98,8 @@ export function DownloadsPage() {
                 variant="outline"
                 className="h-10"
                 onClick={() => retryAll.mutate()}
-                disabled={retryAll.isPending || server.disabled}
-                title={server.reason}
+                disabled={retryAll.isPending || gate.disabled}
+                title={gate.reason}
               >
                 {retryAll.isPending ? <Loader2 aria-hidden className="animate-spin" /> : <RotateCcw aria-hidden />}
                 {t("downloads.retryAllFailed")}

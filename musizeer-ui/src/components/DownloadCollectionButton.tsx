@@ -10,6 +10,7 @@ import { useCapabilities } from "@/hooks/useCapabilities";
 import { useCollectionDownload, type CollectionKind } from "@/hooks/useCollectionDownload";
 import { useApproval, useWaitingRequest } from "@/hooks/useDownloadApproval";
 import { downloadModes, type DownloadMode } from "@/hooks/useTrackDownload";
+import { useDownloadGate } from "@/hooks/useFolderStatus";
 import { useServerAction } from "@/hooks/useServerAction";
 import { rememberFavorite } from "@/hooks/useTrackFavorite";
 import { addFavorites } from "@/lib/api-client";
@@ -60,7 +61,7 @@ export function DownloadCollectionButton({
   const { t } = useI18n();
   const { can } = useCapabilities();
   const modes = downloadModes(can);
-  const server = useServerAction();
+  const gate = useDownloadGate();
   const { download, busy } = useCollectionDownload();
   const approval = useApproval(kind, needed);
   const waiting = useWaitingRequest(kind, provider, id);
@@ -78,8 +79,8 @@ export function DownloadCollectionButton({
         text={approval.waits ? t("approval.request") : label}
         labels={{ plain: label, favorite: approval.waits ? t("approval.requestItem", { title: name }) : favoriteLabel }}
         menuLabel={t("slot.downloadOptions", { title: name })}
-        disabled={busy || server.disabled || !!unavailableReason}
-        title={unavailableReason ?? server.reason ?? approval.hint}
+        disabled={busy || gate.disabled || !!unavailableReason}
+        title={unavailableReason ?? gate.reason ?? approval.hint}
         className={buttonVariants({ variant, size: "lg", className: "px-5" })}
         menuClassName={buttonVariants({ variant, size: "lg", className: "rounded-l-none border-l border-white/30 px-3" })}
       />
