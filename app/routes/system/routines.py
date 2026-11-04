@@ -33,11 +33,13 @@ class RoutinePatch(BaseModel):
 SCHEDULER_GRACE = timedelta(minutes=5)
 
 
-def is_scheduler_stale(enabled: bool, next_run_at: datetime | None, now: datetime) -> bool:
+def is_scheduler_stale(enabled: bool, next_run_at: datetime | None, now: datetime, *, active: bool = False) -> bool:
     """True se un routine attivo aveva una prossima esecuzione più vecchia del
-    margine: lo scheduler non lo sta facendo partire. Un routine disattivato o
-    mai eseguito non dice nulla sullo scheduler: False."""
-    if not enabled or next_run_at is None:
+    margine: lo scheduler non lo sta facendo partire. Un routine disattivato,
+    mai eseguito, o ancora in coda o in corso (il tick non lo rilancia finché
+    non finisce: un lavoro lungo supera il suo periodo senza che lo scheduler
+    sia fermo) non dice nulla sullo scheduler: False."""
+    if not enabled or next_run_at is None or active:
         return False
     return now - next_run_at > SCHEDULER_GRACE
 
@@ -109,7 +111,7 @@ def list_routines(admin: AdminUserDep, config: ConfigDep, registry: RegistryDep,
             # Waiting in the queue / executing now (never both).
             "queued": active is not None and active.status == STATUS_QUEUED,
             "running": active is not None and active.status == STATUS_RUNNING,
-            "scheduler_stale": is_scheduler_stale(enabled, next_run_at, now),
+            "scheduler_stale": is_scheduler_stale(enabled, next_run_at, now, active=active is not None),
             # The work it set going that is still in progress (queued tasks,
             # live chains); None when the routine leaves none behind.
             "active_work": routine_runs.active_work(session, routine.active_work),

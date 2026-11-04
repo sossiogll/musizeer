@@ -383,3 +383,25 @@ def test_list_routines_is_not_stale_on_a_fresh_install(config, registry, session
 
     assert data["scheduler_stale"] is False
     assert all(r["scheduler_stale"] is False for r in data["routines"])
+
+
+def test_a_routine_still_running_is_not_stale():
+    # A long job (the first import of a large library) outlives its period: the tick does not start it again
+    # while it runs, so an overdue next run says nothing about the scheduler.
+    assert routines_route.is_scheduler_stale(True, _NOW - timedelta(days=1), _NOW, active=True) is False
+
+
+def test_list_routines_does_not_flag_a_routine_that_is_still_running(config, registry, session):
+    admin = _admin(session)
+    routine = next(r for r in ROUTINES if r.default_enabled)
+    run = start_run(session, routine.key)
+    run.started_at = datetime.now(timezone.utc) - timedelta(minutes=routine.default_interval_minutes + 60)
+    session.add(run)
+    session.commit()
+
+    data = routines_route.list_routines(admin, config, registry, session)
+
+    entry = next(r for r in data["routines"] if r["key"] == routine.key)
+    assert entry["running"] is True
+    assert entry["scheduler_stale"] is False
+    assert data["scheduler_stale"] is False
