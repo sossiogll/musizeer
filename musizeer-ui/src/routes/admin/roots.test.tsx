@@ -97,13 +97,54 @@ describe("Root folders table", () => {
     expect(mockCheck).toHaveBeenCalledWith("r1");
   });
 
-  it("Check says when the application does not see the folder", async () => {
-    mockCheck.mockResolvedValue(checkReport({ root: roots[0], ok: false, application: { exists: false, writable: false } }));
+  it("a working folder's root the application cannot see is a problem, not OK", async () => {
+    mockCheck.mockResolvedValue(checkReport({
+      root: roots[0], ok: false, state: "error", application: { exists: false, writable: false },
+      checks: [
+        { code: "gateway_ok", level: "ok", params: {} },
+        { code: "application_required_missing", level: "error", params: {} },
+      ],
+    }));
     render();
 
     fireEvent.click(await screen.findByRole("button", { name: "Check Downloads" }));
 
-    expect(await screen.findByText(/application does not see this folder/)).toBeInTheDocument();
+    const message = await screen.findByText(/working folder needs it/);
+    expect(message).toHaveAttribute("data-level", "error");
+    const row = message.closest("tr") as HTMLElement;
+    expect(within(row).getByText("Problem")).toBeInTheDocument();
+    expect(within(row).queryByText("OK")).not.toBeInTheDocument();
+  });
+
+  it("a provider-only root the application cannot see stays OK with an info note", async () => {
+    mockCheck.mockResolvedValue(checkReport({
+      root: roots[0], ok: true, state: "info", application: { exists: false, writable: false },
+      checks: [
+        { code: "gateway_ok", level: "ok", params: {} },
+        { code: "application_not_needed", level: "info", params: {} },
+      ],
+    }));
+    render();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Check Downloads" }));
+
+    const note = await screen.findByText("Not mounted in the application: not needed, only the provider uses it.");
+    expect(note).toHaveAttribute("data-level", "info");
+    expect(within(note.closest("tr") as HTMLElement).getByText("OK")).toBeInTheDocument();
+  });
+
+  it("a warning shows the warning badge", async () => {
+    mockCheck.mockResolvedValue(checkReport({
+      root: roots[0], state: "warning",
+      checks: [{ code: "application_unused_missing", level: "warning", params: {} }],
+    }));
+    render();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Check Downloads" }));
+
+    const note = await screen.findByText(/Nothing uses this root yet/);
+    expect(note).toHaveAttribute("data-level", "warning");
+    expect(within(note.closest("tr") as HTMLElement).getByText("Warning")).toBeInTheDocument();
   });
 
   it("a root in use cannot be deleted, and the reason is on the button", async () => {

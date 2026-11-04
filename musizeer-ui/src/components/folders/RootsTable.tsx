@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CircleCheck, Loader2, Pencil, ShieldCheck, Trash2 } from "lucide-react";
+import { CircleAlert, CircleCheck, Info, Loader2, Pencil, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,24 +12,55 @@ import { checkRoot, deleteRoot } from "@/lib/api-client";
 import { useFailureToast } from "@/lib/error-text";
 import { queryKeys } from "@/lib/query-keys";
 import { formatBytes } from "@/lib/utils";
-import type { RootCheck, RootFolder, RootState } from "@/types";
+import type { RootCheck, RootCheckLevel, RootFolder, RootState } from "@/types";
 
-const STATE: Record<RootState, { variant: "success" | "destructive" | "secondary"; labelKey: MessageKey }> = {
+type BadgeLook = { variant: "success" | "warning" | "destructive" | "secondary"; labelKey: MessageKey };
+
+const STATE: Record<RootState, BadgeLook> = {
   accepted: { variant: "success", labelKey: "roots.state.accepted" },
   refused: { variant: "destructive", labelKey: "roots.state.refused" },
   unchecked: { variant: "secondary", labelKey: "roots.state.unchecked" },
 };
 
-/** What a Check found, in a sentence: nothing to say when all is well. */
-function useCheckText() {
+/** After a Check the badge follows the Check's overall state, never the gateway's verdict alone; an info note keeps OK. */
+const CHECK_STATE: Record<RootCheckLevel, BadgeLook> = {
+  ok: STATE.accepted,
+  info: STATE.accepted,
+  warning: { variant: "warning", labelKey: "roots.state.warning" },
+  error: { variant: "destructive", labelKey: "roots.state.error" },
+};
+
+const FINDING_KEYS: Record<string, MessageKey> = {
+  gateway_ok: "roots.check.ok",
+  gateway_unreachable: "roots.check.gatewayUnreachable",
+  gateway_refused: "roots.check.failed",
+  application_required_missing: "roots.check.applicationRequiredMissing",
+  application_required_read_only: "roots.check.applicationReadOnly",
+  application_not_needed: "roots.check.applicationNotNeeded",
+  application_read_only_not_needed: "roots.check.applicationReadOnlyNotNeeded",
+  application_unused_missing: "roots.check.applicationUnusedMissing",
+  application_unused_read_only: "roots.check.applicationUnusedReadOnly",
+};
+
+const FINDING_ICON = { ok: CircleCheck, info: Info, warning: TriangleAlert, error: CircleAlert } as const;
+const FINDING_TONE: Record<RootCheckLevel, string> = {
+  ok: "text-success",
+  info: "text-muted-foreground",
+  warning: "text-warning",
+  error: "text-destructive",
+};
+
+/** What a Check found, a sentence per finding (the plain "application is fine" one says nothing). */
+function useCheckFindings() {
   const { t } = useI18n();
-  return (report: RootCheck): { ok: boolean; text: string } => {
-    if (report.gateway_error) return { ok: false, text: t("roots.check.gatewayUnreachable") };
-    if (!report.application.exists) return { ok: false, text: t("roots.check.applicationCannotSee") };
-    if (!report.application.writable) return { ok: false, text: t("roots.check.applicationReadOnly") };
-    if (!report.ok) return { ok: false, text: t("roots.check.failed", { reason: report.gateway?.reason || report.root.reason }) };
-    return { ok: true, text: t("roots.check.ok") };
-  };
+  return (report: RootCheck) =>
+    report.checks
+      .filter((finding) => finding.code !== "application_ok" && FINDING_KEYS[finding.code])
+      .map((finding) => ({
+        key: finding.code,
+        level: finding.level,
+        text: t(FINDING_KEYS[finding.code], finding.params),
+      }));
 }
 
 interface RootsTableProps {
@@ -47,7 +78,7 @@ export function RootsTable({ roots, onEdit }: RootsTableProps) {
   const server = useServerAction();
   const failed = useFailureToast();
   const folderLabel = useFolderLabel();
-  const checkText = useCheckText();
+  const checkFindings = useCheckFindings();
   const [checks, setChecks] = useState<Record<string, RootCheck>>({});
   const [deleting, setDeleting] = useState<RootFolder | null>(null);
 
@@ -88,11 +119,11 @@ export function RootsTable({ roots, onEdit }: RootsTableProps) {
           <tbody className="divide-y">
             {roots.map((root) => {
               const report = checks[root.id];
-              const verdict = report ? checkText(report) : null;
+              const findings = report ? checkFindings(report) : [];
               const inUse = root.used_by.length > 0;
               const usedBy = root.used_by.map(folderLabel).join(", ");
               const checking = check.isPending && check.variables?.id === root.id;
-              const state = STATE[root.state];
+              const state = report ? CHECK_STATE[report.state] : STATE[root.state];
               return (
                 <tr key={root.id} className="align-top">
                   <th scope="row" className="px-3 py-2.5 font-medium">{root.label}</th>
@@ -100,12 +131,21 @@ export function RootsTable({ roots, onEdit }: RootsTableProps) {
                   <td className="space-y-1 px-3 py-2.5">
                     <Badge variant={state.variant}>{t(state.labelKey)}</Badge>
                     {root.state === "refused" && root.reason && <p className="max-w-xs text-xs text-destructive">{root.reason}</p>}
-                    {verdict && (
-                      <p className="flex max-w-xs items-start gap-1 text-xs text-muted-foreground" role="status">
-                        {verdict.ok && <CircleCheck aria-hidden className="mt-px size-3.5 shrink-0 text-success" />}
-                        {verdict.text}
-                      </p>
-                    )}
+                    {findings.map((finding) => {
+                      const Icon = FINDING_ICON[finding.level];
+                      const quiet = finding.level === "ok" || finding.level === "info";
+                      return (
+                        <p
+                          key={finding.key}
+                          data-level={finding.level}
+                          className={`flex max-w-xs items-start gap-1 text-xs ${quiet ? "text-muted-foreground" : FINDING_TONE[finding.level]}`}
+                          role="status"
+                        >
+                          <Icon aria-hidden className={`mt-px size-3.5 shrink-0 ${FINDING_TONE[finding.level]}`} />
+                          {finding.text}
+                        </p>
+                      );
+                    })}
                   </td>
                   <td className="px-3 py-2.5 text-muted-foreground">{formatBytes(report?.gateway?.free_bytes, locale)}</td>
                   <td className="px-3 py-2.5">{inUse ? usedBy : <span className="text-muted-foreground">{t("roots.notUsed")}</span>}</td>

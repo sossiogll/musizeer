@@ -198,25 +198,55 @@ def record_verdicts(session: Session, reports: list[dict]) -> int:
     return root_store.record_verdicts(session, verdicts) if verdicts else 0
 
 
-def check(session: Session, client: GatewayClient, root_id: str) -> dict[str, Any]:
+LEVELS = ("ok", "info", "warning", "error")
+
+
+def _finding(code: str, level: str, **params: Any) -> dict[str, Any]:
+    return {"code": code, "level": level, "params": params}
+
+
+def _application_finding(root: RootFolder, used_by: list[dict[str, Any]], exists: bool, writable: bool) -> dict[str, Any]:
+    """Whether the application must see the root depends on what uses it: the working folder is read and written by the
+    host itself, a provider's folder is reached only by the sandboxed provider through the gateway (ADR-0008)."""
+    host_uses = any(item["key"] == folders.WORKING_FOLDER_KEY for item in used_by)
+    if exists and writable:
+        return _finding("application_ok", "ok")
+    if host_uses:
+        return _finding("application_required_missing" if not exists else "application_required_read_only", "error")
+    if not used_by:
+        return _finding("application_unused_missing" if not exists else "application_unused_read_only", "info")
+    return _finding("application_not_needed" if not exists else "application_read_only_not_needed", "info")
+
+
+def check(session: Session, client: GatewayClient, registry, root_id: str) -> dict[str, Any]:
     """The explicit Check of a root: what the gateway sees at its path (with a write test) and whether the application
-    sees it too. Nothing is stored here: the verdict is recorded by the push."""
+    sees it too, as a list of ``checks`` (``code``, ``level`` ok/info/warning/error, ``params``) and the overall
+    ``state``: the worst level. Nothing is stored here: the verdict is recorded by the push."""
     import os
 
     root = get_root(session, root_id)
-    report: dict[str, Any] = {"root": view(root), "gateway": None, "gateway_error": None}
+    used_by = usages(session, registry, root.id)
+    report: dict[str, Any] = {"root": view(root, used_by), "gateway": None, "gateway_error": None}
     try:
         report["gateway"] = client.inspect(root.path, write_test=True)
     except GatewayRefused as refused:
         report["gateway_error"] = refused.error
     except GatewayUnreachable as unreachable:
         report["gateway_error"] = str(unreachable)
-    report["application"] = {
-        "exists": os.path.isdir(root.path),
-        "writable": os.path.isdir(root.path) and os.access(root.path, os.W_OK | os.X_OK),
-    }
+    exists = os.path.isdir(root.path)
+    report["application"] = {"exists": exists, "writable": exists and os.access(root.path, os.W_OK | os.X_OK)}
     gateway = report["gateway"]
-    report["ok"] = bool(gateway and gateway["mounted"] and gateway["writable"] and root.state != "refused")
+    findings = []
+    if report["gateway_error"] or not gateway:
+        findings.append(_finding("gateway_unreachable", "error", detail=report["gateway_error"] or ""))
+    elif not (gateway["mounted"] and gateway["writable"]) or root.state == "refused":
+        findings.append(_finding("gateway_refused", "error", reason=gateway.get("reason") or root.reason or ""))
+    else:
+        findings.append(_finding("gateway_ok", "ok"))
+    findings.append(_application_finding(root, used_by, exists, report["application"]["writable"]))
+    report["checks"] = findings
+    report["state"] = max((item["level"] for item in findings), key=LEVELS.index)
+    report["ok"] = report["state"] in ("ok", "info")
     return report
 
 

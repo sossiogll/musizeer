@@ -116,8 +116,8 @@ def delete_root(root_id: str, session: SessionDep, registry: RegistryDep, _admin
 
 
 @router.get("/roots/{root_id}/check")
-def check_root(root_id: str, session: SessionDep, _admin: AdminUserDep):  # noqa: ARG001
+def check_root(root_id: str, session: SessionDep, registry: RegistryDep, _admin: AdminUserDep):  # noqa: ARG001
     """The explicit Check: what the gateway sees at the path (exists, directory, writable by a real write test, mounted
-    volume, device, free space) and whether the application sees it too."""
+    volume, device, free space) and whether the application sees it too (needed only if the host itself uses the root)."""
     with _refusals():
-        return roots_service.check(session, _gateway(), root_id)
+        return roots_service.check(session, _gateway(), registry, root_id)
