@@ -146,7 +146,7 @@ def worker(gateway, monkeypatch):
     a pipe the test writes to."""
     parent = os.getpid()
     read, write = os.pipe()
-    monkeypatch.setenv("PROVIDER_GATEWAY_SOCKET", str(gateway.run_dir / "gateway.sock"))
+    monkeypatch.setenv("MUSIZEER_GATEWAY_SOCKET", str(gateway.run_dir / "gateway.sock"))
     monkeypatch.setattr(GatewayProviderContext, "settings", lambda self: {})
     monkeypatch.setattr(celery_app, "_process_registry", ProcessRegistry())
     monkeypatch.setattr(
@@ -253,6 +253,7 @@ def test_threads_of_one_process_share_one_registry_and_one_reloader(gateway, wor
 def test_the_parent_of_a_worker_builds_no_registry_and_starts_no_reloader(worker, monkeypatch):
     """``worker_init`` runs in the parent (and in the maintenance worker started with ``-B``, so does
     its beat): what a task needs is built by the processes that run tasks."""
+    monkeypatch.setattr(celery_app, "_require_schema", lambda: None)  # the start check has its own tests
     monkeypatch.setattr(celery_app, "_reap_orphaned_running_downloads", lambda: 0)
     monkeypatch.setattr(celery_app, "_reap_orphaned_library_jobs", lambda: 0)
     monkeypatch.setattr(celery_app, "_config", None)  # restored afterwards: the signal handler sets both
@@ -271,8 +272,8 @@ def test_beat_imports_the_worker_module_without_a_registry_or_a_listener(tmp_pat
     """A standalone ``celery beat`` imports ``workers.celery_app`` and only sends tasks."""
     from tests.credentials_support import KEY
 
-    env = {k: v for k, v in os.environ.items() if k not in ("CREDENTIALS_KEY", "CREDENTIALS_KEY_PREVIOUS", "DATABASE_URL")}
-    env.update(DATA_DIR=str(tmp_path), PYTHONDONTWRITEBYTECODE="1", REDIS_URL="redis://localhost:6379/0", CREDENTIALS_KEY=KEY)
+    env = {k: v for k, v in os.environ.items() if k not in ("MUSIZEER_CREDENTIALS_KEY", "MUSIZEER_CREDENTIALS_KEY_PREVIOUS", "DATABASE_URL")}
+    env.update(MUSIZEER_DATA_DIR=str(tmp_path), PYTHONDONTWRITEBYTECODE="1", REDIS_URL="redis://localhost:6379/0", MUSIZEER_CREDENTIALS_KEY=KEY)
     script = (
         "import threading, workers.celery_app as c;"
         "print(c._process_registry.reloader is None,"

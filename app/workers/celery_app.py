@@ -1,10 +1,10 @@
 from __future__ import annotations
 import logging
-import os
 
 from celery import Celery
 from celery.signals import worker_init, worker_ready
 
+from core import environment
 from db import credential_cipher
 from services.config_manager import ConfigManager
 from services.log_redaction import install_log_redaction
@@ -18,12 +18,13 @@ logger = logging.getLogger(__name__)
 # A worker (and beat, and the API that sends it tasks) refuses to start without the key that
 # opens the stored credentials: a download must never run on credentials it cannot read. Here, at
 # import, because the signal handlers of Celery log what they raise and go on (docs/credentials.md).
+environment.report_at_start()
 credential_cipher.require_credentials_key()
 
-_REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+_REDIS_URL = environment.redis_url()
 
 celery = Celery(
-    "musizerr",
+    "musizeer",
     broker=_REDIS_URL,
     backend=_REDIS_URL,
     include=["workers.tasks", "workers.maintenance", "workers.scheduler", "workers.duplicates"],
@@ -146,9 +147,23 @@ def consumed_queues(sender) -> frozenset[str]:
         return frozenset()
 
 
+def _require_schema() -> None:
+    """A worker never migrates (``init`` did): it refuses to start on a schema that is behind or that its code
+    cannot use (ADR-0007 §4). A SystemExit, not an Exception: Celery logs what a signal handler raises and goes
+    on, and a worker that goes on against a schema it cannot use would fail every task."""
+    from services.database_init import SchemaError, require_current_schema
+
+    try:
+        require_current_schema()
+    except SchemaError as refused:
+        logger.critical("%s", refused)
+        raise SystemExit(1) from refused
+
+
 @worker_init.connect
 def _on_worker_init(sender=None, **kwargs) -> None:
     global _config, _consumed
+    _require_schema()
     logger.info("Initializing worker state...")
     _config = ConfigManager()
     _consumed = consumed_queues(sender)

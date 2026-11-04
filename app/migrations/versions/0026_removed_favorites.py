@@ -33,6 +33,9 @@ down_revision: Union[str, None] = "0025_track_data_without_identifiers"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+# ADR-0007 section 4: what this migration is for the release that ships it (docs/migrations.md).
+phase = "expand"  # adds a table
+
 
 def upgrade() -> None:
     op.create_table(
@@ -53,7 +56,7 @@ def upgrade() -> None:
 
 
 def _backfill(conn) -> None:
-    from musizerr_sdk.identifiers import Identifier
+    from musizeer_sdk.identifiers import Identifier
     from core.matching import song_keys
     from core.serialization import deserialize_track
 

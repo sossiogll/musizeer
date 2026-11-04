@@ -2,7 +2,8 @@
 
 One file per decision, numbered in the order they were written. A record is never deleted; a later one supersedes it
 and says so. **Status** is the one in the record's own header. Records written before ADR-0010 keep the name the product
-had then (Musizerr): they are history, and are not edited for the rename.
+had then (Musizerr): they are history, and are not edited for the rename. For the picture these decisions add up to, see
+the [architecture overview](../architecture.md).
 
 | ADR | Title | Status |
 |---|---|---|
@@ -13,7 +14,7 @@ had then (Musizerr): they are history, and are not edited for the rename.
 | [0005](0005-identity-data-and-reads.md) | Identity data has one home, and reading never writes it | Accepted |
 | [0006](0006-provider-distribution-and-sandbox.md) | Distributing providers as OCI images on GHCR and running them in a sandbox | Implemented (phases 1 to 6) |
 | [0007](0007-versions-compatibility-and-upgrades.md) | Versions, compatibility and upgrades | Accepted, partly implemented (see its implementation plan) |
-| [0008](0008-library-roots-and-staging.md) | Root folders and folder settings: where the work happens and where the music lives | Accepted (2026-10-25), not yet implemented |
+| [0008](0008-library-roots-and-staging.md) | Root folders and folder settings: where the work happens and where the music lives | Accepted (2026-10-25); the gateway, the host (data, settings, API, blocking, conversion) and the SDK are implemented; the page, the local provider and the delegate mapping (steps 5 and 6) are not yet |
 | [0009](0009-configuration-surface-and-environment-names.md) | The configuration surface: deployment versus application, and the `MUSIZEER_` environment names | Accepted (2026-10-25), not yet implemented |
 | [0010](0010-rename-to-musizeer.md) | Rename the product from Musizerr to Musizeer, in one breaking release | Accepted (2026-10-25), not yet implemented |
 

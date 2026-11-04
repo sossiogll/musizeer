@@ -6,7 +6,7 @@ a [bubblewrap](https://github.com/containers/bubblewrap) sandbox with no network
 application and the workers talk to the provider over a Unix socket; they never install or start anything.
 
 Every provider lives this way: none is part of the application, and the host registers only what the gateway runs
-and declares. The first-party ones are in their own repositories (the public ones in `musizerr-providers`).
+and declares. The first-party ones are in their own repositories (the public ones in `musizeer-providers`).
 
 ```
  app / workers ──(call protocol, Unix socket)──▶ sandbox: provider (runner)
@@ -26,7 +26,7 @@ and declares. The first-party ones are in their own repositories (the public one
 
    ```json
    {"name": "lrclib",
-    "image": "ghcr.io/sossiogll/musizerr-provider-lrclib",
+    "image": "ghcr.io/sossiogll/musizeer-provider-lrclib",
     "digest": "sha256:<64 hex>",
     "roles": ["lyrics"],
     "permissions": {"egress": ["lrclib.net:443"], "egress_from_settings": [],
@@ -54,8 +54,8 @@ and declares. The first-party ones are in their own repositories (the public one
    `linux/<arch>` manifest of the host, which is verified in turn; the config and every layer must hash to
    the digest and size their descriptor names, and the uncompressed layer to the config's `diff_id`. The
    `Authorization` header is dropped when a redirect leaves the registry's host.
-3. **Labels.** The image describes itself with `org.musizerr.provider.*` labels (name, roles, contract
-   version, permissions), generated from the provider by `python -m musizerr_sdk.runner --print-labels`.
+3. **Labels.** The image describes itself with `org.musizeer.provider.*` labels (name, roles, contract
+   version, permissions), generated from the provider by `python -m musizeer_sdk.runner --print-labels`.
    They are read from the config **before any layer is downloaded** and the image is refused, with the
    reason, if the name differs from the entry's, the roles or the permissions differ from the ones the entry says the
    admin approved (as sets: the order is nothing; an image cannot gain a permission nobody approved), the
@@ -82,8 +82,8 @@ bwrap --unshare-all --unshare-user --disable-userns --die-with-parent --new-sess
       --ro-bind <image rootfs> /  --proc /proc  --dev /dev  --size … --tmpfs /tmp
       --bind  <run>/providers/<name>   /run/provider      # its socket
       --ro-bind <state>/egress/<name>  /run/egress         # the egress proxy's socket, read-only
-      --bind  <workspace_dir>/<name>   /workspace          # its subtree of the workspace directory
-      [--bind|--ro-bind <resolved folder> <the same path> [--tmpfs <workspace directory inside it>]]  # granted by its settings
+      --bind  <working folder>/<name>  /workspace          # its subtree of the working folder (an empty --tmpfs while it is not set)
+      [--bind|--ro-bind <resolved folder> <the same path> [--tmpfs <working folder inside it>]]  # granted by its settings
       --seccomp <fd> --chdir / --setenv … -- <entry point of the image> --socket … --egress-socket …
 ```
 
@@ -100,7 +100,7 @@ bwrap --unshare-all --unshare-user --disable-userns --die-with-parent --new-sess
   address space, not memory: the limit on real memory is not raised.
 - Limits: address space and open files (`prlimit`, limits of each process) and processes and threads (counted
   by the gateway, [below](#processes-and-threads)) from the manifest, capped at the gateway's ceilings
-  (`GATEWAY_MAX_MEMORY_MB`, `GATEWAY_MAX_OPEN_FILES`, `GATEWAY_MAX_PROCESSES`); defaults when the manifest asks for
+  (`MUSIZEER_GATEWAY_MAX_MEMORY_MB`, `MUSIZEER_GATEWAY_MAX_OPEN_FILES`, `MUSIZEER_GATEWAY_MAX_PROCESSES`); defaults when the manifest asks for
   nothing (1024 MB, 1024 files, 512 tasks). **No `RLIMIT_NPROC` is set**, see below.
 - A provider that declares `filesystem_from_settings` gets the folders its settings name, when the gateway
   grants them ([below](#folders-named-by-settings)); until then it runs without them.
@@ -120,7 +120,7 @@ bwrap --unshare-all --unshare-user --disable-userns --die-with-parent --new-sess
 
 ### Processes and threads
 
-`limits.processes` of a manifest (default 512, at most `GATEWAY_MAX_PROCESSES`, 1024) is **the number of tasks, processes and
+`limits.processes` of a manifest (default 512, at most `MUSIZEER_GATEWAY_MAX_PROCESSES`, 1024) is **the number of tasks, processes and
 threads together, that the whole sandbox of a provider may hold**. Two things enforce it:
 
 - **The gateway counts.** Every 2 seconds it adds up the threads of each sandbox's process tree (`/proc`, `tasks.py`). A
@@ -128,7 +128,7 @@ threads together, that the whole sandbox of a provider may hold**. Two things en
   pause; `ctl list` says `process/thread limit reached: the sandbox held N processes and threads, over its limit of M`
   (`reason`) and the log has the same, with the numbers of the container. It is sampling: it catches a provider that leaks or
   runs away, not a burst between two samples.
-- **The container's pids limit is the hard cap.** `pids_limit` of the gateway service (`GATEWAY_PIDS_LIMIT`, default 4096) is the
+- **The container's pids limit is the hard cap.** `pids_limit` of the gateway service (`MUSIZEER_GATEWAY_PIDS_LIMIT`, default 4096) is the
   cgroup `pids` controller: it counts the tasks of THIS container only, the gateway and every sandbox in it, and nothing else
   on the host. A fork bomb ends there and never reaches the host's process table. The gateway logs the limit at start (a
   warning when there is none) and shows it in `ctl list` and `ctl health` (`container`: `pids`, `pids_limit`). The limit is
@@ -161,7 +161,7 @@ gateway: 32137, counted over every process of uid 1000 on the whole host; sandbo
 ```
 
 and counts it in the provider's `task_limit_hits` (`ctl list`). A bubblewrap `EAGAIN` becomes `sandbox unavailable: ... (hint: EAGAIN: ...)`
-with the same numbers. If `container pids` is at its limit, raise `GATEWAY_PIDS_LIMIT`; if it is far below it, something outside the
+with the same numbers. If `container pids` is at its limit, raise `MUSIZEER_GATEWAY_PIDS_LIMIT`; if it is far below it, something outside the
 gateway limits `RLIMIT_NPROC` for the uid (see the [troubleshooting table](#troubleshooting)).
 
 ### Egress
@@ -187,11 +187,11 @@ proxy resolves the name itself and connects to the address it checked, so a name
 between the check and the connection. Every refusal is logged
 (`egress refused: provider=… target=… reason=…`) and kept in the provider's `egress.refused` of `ctl list`.
 
-The answers the proxy gives itself carry `X-Musizerr-Egress`:
+The answers the proxy gives itself carry `X-Musizeer-Egress`:
 - `refused` on a 403, when the destination is not allowed;
 - `unreachable` on a 502, when it did not answer.
 
-A provider's HTTP library sees an ordinary response, and `musizerr_sdk.failures` classifies it as what it is. A destination that does not answer is `unreachable`, so a 503 and a retry, never the `upstream_error` of a server that answered with a 502; a refusal is `failed`. An HTTPS tunnel the proxy does not open reaches httpx as a `ProxyError` whose text starts with the proxy's status, and is classified the same way. A provider does not have to know any of this.
+A provider's HTTP library sees an ordinary response, and `musizeer_sdk.failures` classifies it as what it is. A destination that does not answer is `unreachable`, so a 503 and a retry, never the `upstream_error` of a server that answered with a 502; a refusal is `failed`. An HTTPS tunnel the proxy does not open reaches httpx as a `ProxyError` whose text starts with the proxy's status, and is classified the same way. A provider does not have to know any of this.
 
 **How the setting-named destinations reach the gateway.** Only the host knows the settings and the sandbox
 must not be able to influence them, so the host tells the gateway: `GatewayProviderContext` (the context of a
@@ -225,10 +225,10 @@ server chooses at run time**. The manifest declares `tcp_from_settings: [{"setti
 (or `"2121"`, or a range `"30000-30100"`): the host the setting names, reachable on those ports, private
 addresses included (the user typed the host), still never loopback or link-local. The admin sees "Can open
 connections on any port to the host you set in “host”". The sandbox has no network, so the library's sockets go
-through the same proxy with `CONNECT host:port`: `musizerr_sdk.net` is the helper.
+through the same proxy with `CONNECT host:port`: `musizeer_sdk.net` is the helper.
 
 ```python
-from musizerr_sdk import net
+from musizeer_sdk import net
 
 sock = net.create_connection(("files.example.org", 2121), timeout=10)   # a normal socket; same signature as socket.create_connection
 ```
@@ -244,7 +244,7 @@ through the proxy (the rest of the process keeps the real `socket`):
 
 ```python
 import ftplib
-from musizerr_sdk import net
+from musizeer_sdk import net
 
 net.route_module(ftplib)                      # once, at import
 ftp = ftplib.FTP()
@@ -260,21 +260,54 @@ nothing. `FTP` connects the data connection to the control socket's peer address
 host, so the (often private, NAT-confused) address in the `227` reply is never used. A server's data ports
 can be narrowed by declaring the range instead of `any`.
 
+### Root folders and the working folder (ADR-0008)
+
+**The environment holds no folder.** The administrator declares **root folders** (a label and an absolute path as the
+containers see it) and the **working folder** (a `folder` setting: a root plus a path inside it) in the interface; the host
+**pushes** them with the desired set of providers (`{"op": "install", ..., "roots": [{"id", "path"}], "workspace": "<resolved
+working folder>"}`), at start, after every change of a root, of the working folder or of a provider folder, and when the
+gateway restarted. Before the first push the gateway runs no provider, so there is no window in which it has a folder the host
+does not know. The bound on what can be declared is **what Docker mounted into this container**: mount only the music folders.
+`roots.py` judges each declared root, every time it is asked about (a mount can appear or go away), and **accepts** it only if:
+
+- it is absolute and normalized, is not `/`, and collides with none of `/proc`, `/dev`, `/tmp`, `/run`, `/workspace`;
+- it does not overlap the gateway's own folders (its state and run directories);
+- it exists, is a directory and is **writable** by the gateway;
+- it lies on a **mounted volume**: the longest entry of the gateway's own `/proc/self/mountinfo` that contains its
+  resolved path is neither `/` (the container's own file system: a root cannot be `/etc` or any other part of the image)
+  nor a kernel or memory file system (`tmpfs`, `proc`, `sysfs`, `devtmpfs`, `cgroup`...). An unreadable table is no mount at all, so
+  nothing is accepted;
+- no other root has the same path. One root may lie inside another.
+
+A root that fails is **not used** and `list` says why. The **working folder** is accepted only if it lies inside an accepted
+root and no link on the way leads out of it (it need not exist yet: the gateway makes `<working folder>/<provider>`). While it
+is not set, or refused, the providers still run (search and metadata do not need it) with an empty private `/workspace`, and the
+host makes no call that carries a file.
+
+`list` reports `roots` (`id`, `path`, `state` `accepted`/`refused`, `reason`, `device`, `mount_id`, `mount_point`, `fs_type`,
+`writable`, `free_bytes`), `workspace` (what the host declared, its `state` `unset`/`accepted`/`refused` and the `reason`) and
+`workspace_root` (the accepted working folder, null otherwise). Two read-only operations serve the interface:
+
+- `{"op": "inspect", "path": "/library"}`: what the gateway sees there (`exists`, `directory`, `writable`, `mounted`, `device`,
+  `mount_id`, `mount_point`, `fs_type`, `free_bytes`, `real_path`, `reason`). Nothing about its content.
+- `{"op": "browse", "path": "/library"}`: the folder picker. The subdirectories of a path inside a mounted volume (never files; a
+  link whose target is not a directory of the same volume is not listed; a path that leads out of its volume through a link, or
+  into the gateway's own folders, is refused), each with its `path`, and the `parent` (null at the mount point). Without a path it
+  lists the mounted volumes: the places a root can be declared in.
+
 ### Folders named by settings
 
-A provider that declares `filesystem_from_settings: [{"setting": "root_dir", "mode": "rw"}]` (local storage) gets
-the folder that setting holds, bound into its sandbox **at the same absolute path**, read-write or read-only as
-declared. The host sends the CURRENT value with the grant (`paths`), and the gateway accepts it only if:
+A provider that declares `filesystem_from_settings: [{"setting": "root_dir", "mode": "rw"}]` (local storage) names a **`folder`
+setting** (a root plus a path; the conformance rule of the SDK refuses anything else) and gets the folder that setting
+holds, bound into its sandbox **at the same absolute path**, read-write or read-only as declared. The host resolves the
+setting and sends the CURRENT absolute path with the grant (`paths`); the gateway accepts it only if:
 
 - it is absolute and normalized (no `..`, `//` or trailing `/`) and is not `/`;
-- it lies inside one of the roots of **`GATEWAY_FILESYSTEM_ROOTS`** (`:`-separated; empty: no folder is ever
-  granted; the compose files set `/downloads`, the library volume, unless `.env` says otherwise: several roots are
-  `GATEWAY_FILESYSTEM_ROOTS=/downloads:/library`, [deployment.md](deployment.md#folders)) **and so does what it resolves to**: a link inside the root
-  that leads out of it is refused. A root that is `/`, relative, inside or holding the gateway's own state or run
-  directory, or one of `/proc`, `/dev`, `/tmp`, `/run`, `/workspace` stops the gateway from starting;
-- it exists and is a directory, is not inside the workspace directory, and does not collide with what every sandbox
-  mounts itself. When it **holds** the workspace directory (the library root holds `.musizerr-work`), that
-  directory is covered by an empty `tmpfs`: another provider's files are not for this one;
+- it lies inside one of the **accepted root folders** (above; with no accepted root, no folder is ever granted) **and so does
+  what it resolves to**: a link inside the root that leads out of it is refused;
+- it exists and is a directory, is not inside the working folder, and does not collide with what every sandbox
+  mounts itself. When it **holds** the working folder (a root that also holds the downloads), that
+  folder is covered by an empty `tmpfs`: another provider's files are not for this one;
 - no other setting of the same provider already claimed it.
 
 The mode is the one the verified image declares; `ro` is a read-only bind (a write fails with `EROFS`). What is
@@ -288,7 +321,8 @@ grant again changes nothing. Until a grant arrives a provider runs **without** t
 and the path does not exist, so a call that needs it fails cleanly. Not starting it until the grant came would
 deadlock: the host connects to, and so grants for, only a provider that runs. Folders do not expire with the
 destinations (a mount lapsing would restart the provider every two minutes); they stay until a grant replaces
-them, and a restarted gateway forgets them until the host's next grant (every call that finds the grant older than 60 s, or changed, sends it again): for that time the provider runs without its folders.
+them. A change of the root folders or of the working folder judges them again and restarts the providers whose mounts it
+changes. A restarted gateway forgets everything until the host's next push and grant (every call that finds the grant older than 60 s, or changed, sends it again): for that time the provider runs without its folders.
 
 *Residual details.* The image's root filesystem needs a mount point at the path: the gateway makes empty
 directories there (never following a link of the image) and leaves them when a setting changes. Between the
@@ -299,7 +333,7 @@ gateway's uid (the sandbox's uid is mapped to it): the folder must be writable b
 
 ### The seccomp profile of the container
 
-`gateway/seccomp/musizerr-gateway.json` is Docker's default profile (`moby-default.json`, copied verbatim
+`gateway/seccomp/musizeer-gateway.json` is Docker's default profile (`moby-default.json`, copied verbatim
 from the `github.com/moby/profiles/seccomp` vendored in moby tag `docker-v29.4.0`, sha256
 `01536f1d…01e28`) plus **one appended, unconditional entry** allowing `clone`, `mount`, `pivot_root`,
 `umount2` and `unshare`. Docker's default profile allows those only to a container with `CAP_SYS_ADMIN`
@@ -325,10 +359,10 @@ All of them go in `security_opt`, in every compose file that runs the gateway:
 ```yaml
 provider-gateway:
   user: "1000:1000"
-  pids_limit: ${GATEWAY_PIDS_LIMIT:-4096}                 # the processes and threads of the whole container: see "Processes and threads"
+  pids_limit: ${MUSIZEER_GATEWAY_PIDS_LIMIT:-4096}                 # the processes and threads of the whole container: see "Processes and threads"
   cap_drop: [ALL]
   security_opt:
-    - seccomp=./gateway/seccomp/musizerr-gateway.json    # or musizerr-gateway.seccomp.json next to a release's compose file
+    - seccomp=./gateway/seccomp/musizeer-gateway.json    # or musizeer-gateway.seccomp.json next to a release's compose file
     - apparmor=unconfined
     - systempaths=unconfined
 ```
@@ -348,7 +382,7 @@ Where that is impossible the providers outside the application do not run.
 
 ## Troubleshooting
 
-`docker compose exec provider-gateway python -m musizerr_gateway.ctl health` (or `docker compose logs provider-gateway`)
+`docker compose exec provider-gateway python -m musizeer_gateway.ctl health` (or `docker compose logs provider-gateway`)
 says `sandbox unavailable: <bubblewrap's error> (hint: ...)` when no sandbox can be made; the gateway adds the hint
 for the errors below (`SANDBOX_HINTS` in `sandbox.py`) and checks again every 30 s, so fixing the container and
 `docker compose up -d provider-gateway` is enough. Nothing runs unconfined in the meantime.
@@ -357,12 +391,12 @@ for the errors below (`SANDBOX_HINTS` in `sandbox.py`) and checks again every 30
 |---|---|---|---|
 | `Creating new namespace failed: Permission denied` | `EACCES` | AppArmor: Docker's `docker-default` profile denies the namespace calls. This is what a stock Debian or Ubuntu host shows. | `apparmor=unconfined` in the gateway's `security_opt` (not `privileged`). |
 | `setting up uid map: Permission denied` | `EACCES` | An AppArmor policy that restricts unprivileged user namespaces (`kernel.apparmor_restrict_unprivileged_userns=1`, Ubuntu 24.04+). | `apparmor=unconfined` for the container, or `sysctl kernel.apparmor_restrict_unprivileged_userns=0` on the host. |
-| `No permissions to create a new namespace` (older: `...to creating new namespace, likely because the kernel does not allow non-privileged user namespaces`) | `EPERM` | Docker's default seccomp profile is in use (the `seccomp=` file was not found or not given), or the kernel forbids unprivileged user namespaces. | The `seccomp=` option must name `musizerr-gateway.json` as a path that exists **on the Docker host** (`GATEWAY_SECCOMP_PROFILE`, [deployment.md](deployment.md#apparmor-and-seccomp)); on Debian `sysctl kernel.unprivileged_userns_clone=1`; check `sysctl user.max_user_namespaces` is not 0. |
+| `No permissions to create a new namespace` (older: `...to creating new namespace, likely because the kernel does not allow non-privileged user namespaces`) | `EPERM` | Docker's default seccomp profile is in use (the `seccomp=` file was not found or not given), or the kernel forbids unprivileged user namespaces. | The `seccomp=` option must name `musizeer-gateway.json` as a path that exists **on the Docker host** (`MUSIZEER_GATEWAY_SECCOMP_PROFILE`, [deployment.md](deployment.md#apparmor-and-seccomp)); on Debian `sysctl kernel.unprivileged_userns_clone=1`; check `sysctl user.max_user_namespaces` is not 0. |
 | `Creating new namespace failed, likely because the kernel does not support user namespaces` | `EINVAL` | The kernel has no user namespaces, or `user.max_user_namespaces` is 0. | `sysctl user.max_user_namespaces=15000` (persist it in `/etc/sysctl.d/`); a kernel built without `CONFIG_USER_NS` cannot run the gateway. |
 | `Can't mount proc on /newroot/proc: Operation not permitted` | `EPERM` | The container's `/proc` is masked. | `systempaths=unconfined` in `security_opt`. |
 | `pivot_root: Operation not permitted`, `Can't mount tmpfs ...: Operation not permitted` | `EPERM` | The seccomp profile in use does not allow `mount`, `pivot_root`, `unshare`, `clone`, `umount2`. | The gateway's profile, not Docker's default (above). |
-| `bwrap: execvp ...: No such file or directory`, `bubblewrap is not installed` | | A gateway image that is not the published one. | Pull `musizerr-gateway`. |
-| `Creating new namespace failed: Resource temporarily unavailable`, `fork: Resource temporarily unavailable`; or, in a provider's output and the gateway's log, `process/thread limit reached (RLIMIT_NPROC / pids)` and `can't start new thread` | `EAGAIN` | The kernel would not create a process or a thread. The message carries the numbers: `container pids: N of M (pids_limit)` and `RLIMIT_NPROC of the gateway`. Not a permission problem: no AppArmor or seccomp change helps. | `N` close to `M`: raise `GATEWAY_PIDS_LIMIT` (and look at `tasks` of each provider in `ctl list`: a provider that leaks threads is stopped at its `limits.processes`). `N` far below `M`: an `RLIMIT_NPROC` is set on the gateway from outside (`ulimits: nproc` in a compose override, `default-ulimits` in `/etc/docker/daemon.json`, `LimitNPROC` of the Docker unit) and the kernel counts it over every process of the uid on the host; remove it, the pids limit does the job. |
+| `bwrap: execvp ...: No such file or directory`, `bubblewrap is not installed` | | A gateway image that is not the published one. | Pull `musizeer-gateway`. |
+| `Creating new namespace failed: Resource temporarily unavailable`, `fork: Resource temporarily unavailable`; or, in a provider's output and the gateway's log, `process/thread limit reached (RLIMIT_NPROC / pids)` and `can't start new thread` | `EAGAIN` | The kernel would not create a process or a thread. The message carries the numbers: `container pids: N of M (pids_limit)` and `RLIMIT_NPROC of the gateway`. Not a permission problem: no AppArmor or seccomp change helps. | `N` close to `M`: raise `MUSIZEER_GATEWAY_PIDS_LIMIT` (and look at `tasks` of each provider in `ctl list`: a provider that leaks threads is stopped at its `limits.processes`). `N` far below `M`: an `RLIMIT_NPROC` is set on the gateway from outside (`ulimits: nproc` in a compose override, `default-ulimits` in `/etc/docker/daemon.json`, `LimitNPROC` of the Docker unit) and the kernel counts it over every process of the uid on the host; remove it, the pids limit does the job. |
 
 The same table, from the host's side: `EACCES` is a **Linux security module** (AppArmor, SELinux) saying no; `EPERM` is
 **seccomp** or a **sysctl**. On an SELinux host (Fedora, RHEL) the container may need `label=disable` in
@@ -373,32 +407,33 @@ A provider that is `refused` or `failed` (not `unavailable`) is another matter: 
 
 ## Control socket
 
-`<run_dir>/gateway.sock` (default `/run/musizerr/gateway.sock`), mode 0600; one JSON object per line in, one
-out. `python -m musizerr_gateway.ctl [list|health|install|grant]` is a client (`install` and `grant` read their request from standard input, as the host would send it: for tests and for looking at a gateway on its own).
+`<run_dir>/gateway.sock` (default `/run/musizeer/gateway.sock`), mode 0600; one JSON object per line in, one
+out. `python -m musizeer_gateway.ctl [list|health|install|grant]` is a client (`install` and `grant` read their request from standard input, as the host would send it: for tests and for looking at a gateway on its own).
 
 | request | answer |
 |---|---|
-| `{"op": "list"}` | `epoch` (changes when the gateway restarts), `desired` (the identifier of the set the host last pushed, null before the first push), `generation` (changes when the set of running providers does), `workspace_root`, `sandbox` (`available`, `reason`), `rejected` (entries of the file that are unusable, with why), and per provider: `state` (`pulling`, `starting`, `running`, `restarting`, `refused`, `unavailable`, `failed`, `stopped`), `reason`, `restarts`, `socket` (relative to the run directory, when running), `declared` (name, roles, API version, permissions of its image), `egress` (`fixed`, wildcards included; `granted`; `tcp`, the hosts of `tcp_from_settings` with their ports; `refused`), `folders` (`granted`: path and mode of what is bound into the running process; `refused`: setting -> why its path is not), `tasks` (the processes and threads of its sandbox: `current`, `peak`, `limit` = its `limits.processes`) and `task_limit_hits` (`count` and `last` words of the times it reported that the kernel would not create a thread); and `container` (the gateway container's `pids` and `pids_limit`, null when there is none or it cannot be read) |
+| `{"op": "list"}` | `epoch` (changes when the gateway restarts), `desired` (the identifier of the set the host last pushed, null before the first push), `generation` (changes when the set of running providers does), `workspace_root` (the accepted working folder, null while it is not set or refused), `workspace` (declared path, `state`, `reason`), `roots` (what the gateway made of each declared root folder, see above), `sandbox` (`available`, `reason`), `rejected` (entries of the file that are unusable, with why), and per provider: `state` (`pulling`, `starting`, `running`, `restarting`, `refused`, `unavailable`, `failed`, `stopped`), `reason`, `restarts`, `socket` (relative to the run directory, when running), `declared` (name, roles, API version, permissions of its image), `egress` (`fixed`, wildcards included; `granted`; `tcp`, the hosts of `tcp_from_settings` with their ports; `refused`), `folders` (`granted`: path and mode of what is bound into the running process; `refused`: setting -> why its path is not), `tasks` (the processes and threads of its sandbox: `current`, `peak`, `limit` = its `limits.processes`) and `task_limit_hits` (`count` and `last` words of the times it reported that the kernel would not create a thread); and `container` (the gateway container's `pids` and `pids_limit`, null when there is none or it cannot be read) |
 | `{"op": "health"}` | `status`: `ok`, `degraded` (a provider is down) or `unavailable` (no sandbox can be made: nothing runs), the sandbox verdict, `container` (as in `list`) and the state of each provider |
 | `{"op": "egress", "provider", "targets": ["host:port"], "ttl", "tcp": {setting: [host]}, "paths": {setting: path}}` | the host's grant, see above: `granted` (destinations understood), `paths` (`granted`, `refused`), `restarted` (the process was restarted to change its mounts; the reply came after the new one ran) |
-| `{"op": "install", "providers": [...], "generation": "..."}` | the desired set, see above: `accepted` (names) and `rejected` (name: reason) |
+| `{"op": "install", "providers": [...], "generation": "...", "roots": [{"id", "path"}], "workspace": "..."}` | the desired set and the folders, see above: `accepted` (names), `rejected` (name: reason), `roots` (as in `list`) and `workspace` |
+| `{"op": "inspect", "path"}` | read-only: what is at the path, see [root folders](#root-folders-and-the-working-folder-adr-0008) |
+| `{"op": "browse", "path"}` | read-only: the subdirectories of a path in a mounted volume, or the volumes themselves without a path |
 
 ## Sockets, volumes and permissions
 
-- `provider_sockets` (named volume) is mounted at `/run/musizerr` in the gateway, the app and the three
+- `provider_sockets` (named volume) is mounted at `/run/musizeer` in the gateway, the app and the three
   workers (not `init`, `beat` or the frontend). It holds `gateway.sock` and `providers/<name>/provider.sock`.
 - The directories are 0700 and the sockets 0600, owned by uid 1000. **Whoever can open a provider's socket can
   call it with any session**, credentials included, so only the services that need it mount the volume and
   nobody else can read it. The gateway runs as 1000, the application's user in production (the `Dockerfile` creates
-  `/run/musizerr` owned by it, so the volume is initialised right whoever starts first). In development the app
+  `/run/musizeer` owned by it, so the volume is initialised right whoever starts first). In development the app
   runs as root, which reaches the sockets anyway.
-- The workspace directory (`workspace_dir`, default `/downloads/.musizerr-work`) must be the same path in the
-  gateway (`GATEWAY_WORKSPACE_DIR`) and the host, and lie inside a volume all of them mount. Compose sets both from
-  ONE variable, `WORKSPACE_DIR` (in `.env`): the gateway gets it as `GATEWAY_WORKSPACE_DIR`, the host as the default of its
-  `workspace_dir` setting. A value saved in the settings wins over that default, so changing the setting in the
-  interface without changing `WORKSPACE_DIR` desyncs them; the API compares its setting with the gateway's
-  `workspace_root` every few seconds and logs an error (once per pair of values) when they differ. A call's workspace is
-  `<workspace_dir>/<provider>/<random>`; the sandbox of `<provider>` sees `<workspace_dir>/<provider>` as
+- The working folder (the `workspace_dir` setting, a root plus a path, **no default**) is declared in the interface and pushed
+  to the gateway by the host (above): there is no variable for it, so the host and the gateway cannot disagree. It must lie in
+  a root folder mounted at the same path in the application, the workers and the gateway (the host checks its side, the gateway
+  reports its own); after every push the API compares `workspace_root` of `list` with its own value and logs a mismatch, as a
+  safety net. A call's workspace is
+  `<working folder>/<provider>/<random>`; the sandbox of `<provider>` sees `<working folder>/<provider>` as
   `/workspace` and nothing else. The provider folder is 0711 (crossed, not listed), the call folder 0777: the
   sandbox's uid is mapped to the gateway's uid, which may differ from the host's. A file that moves from one
   provider to another (downloaded by one, stored by another; a file held for a later upload) is **staged**
@@ -421,7 +456,7 @@ out. `python -m musizerr_gateway.ctl [list|health|install|grant]` is a client (`
   `data/catalogs/registry.json`, which the `registry` service serves as `http://registry:9000/registry.json`. Install from that
   catalog in Administration or with `python -m scripts.provider_sources`; the source is added with "allow insecure
   registry", because the image name is the one the gateway reaches (`oci-registry:5000`) over plain HTTP. The build
-  script builds the base image locally (`ghcr.io/sossiogll/musizerr-provider-base:5`, never pushed), has the provider print
+  script builds the base image locally (`ghcr.io/sossiogll/musizeer-provider-base:6`, never pushed), has the provider print
   its labels, and refuses to push to ghcr.io or Docker Hub. Published images are pushed by other scripts
   ([catalog.md](catalog.md#publishing-to-ghcr)): for linux/amd64 and linux/arm64, pinned by the digest of their index.
 - Images that are no longer installed are not removed from the cache yet.

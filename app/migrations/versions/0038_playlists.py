@@ -4,7 +4,7 @@ Revision ID: 0038_playlists
 Revises: 0037_provider_login
 Create Date: 2026-10-10
 
-Playlists kept by Musizerr (``services/playlists.py``): ``playlists`` (one per
+Playlists kept by Musizeer (``services/playlists.py``): ``playlists`` (one per
 user and source for the followed ones), ``playlist_tracks`` (the tracks in
 order; a track is in a playlist once) and ``playlist_syncs`` (the copy of a
 playlist on a sync provider, on its owner's own account: its id there and what
@@ -25,6 +25,9 @@ revision: str = "0038_playlists"
 down_revision: Union[str, None] = "0037_provider_login"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+# ADR-0007 section 4: what this migration is for the release that ships it (docs/migrations.md).
+phase = "expand"  # adds tables
 
 
 def upgrade() -> None:

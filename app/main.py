@@ -1,6 +1,5 @@
 from __future__ import annotations
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from pathlib import Path
@@ -9,11 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-_ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
-
-from core import user_auth
+from core import environment, user_auth
 from db import credential_cipher
-from db.engine import init_db
+from services.database_init import SchemaError, require_current_schema
 from routes.deps import get_config, init_singletons
 from routes.errors import install_error_handlers
 from services import app_version
@@ -31,6 +28,7 @@ from routes.content.playlist import router as playlist_router
 from routes.playlists import router as playlists_router
 from routes.content.artist import router as artist_router
 from routes.config import router as config_router
+from routes.roots import router as roots_router
 from routes.sources import router as sources_router
 from routes.history import router as history_router
 from routes.stream import router as stream_router
@@ -54,9 +52,9 @@ logger = logging.getLogger(__name__)
 
 def _bootstrap_admin() -> None:
     """Create an admin user on first boot if no users exist and env vars
-    ADMIN_BOOTSTRAP_EMAIL / ADMIN_BOOTSTRAP_PASSWORD are set."""
-    admin_email = os.environ.get("ADMIN_BOOTSTRAP_EMAIL")
-    admin_password = os.environ.get("ADMIN_BOOTSTRAP_PASSWORD")
+    MUSIZEER_ADMIN_BOOTSTRAP_EMAIL / MUSIZEER_ADMIN_BOOTSTRAP_PASSWORD are set."""
+    admin_email = environment.get("MUSIZEER_ADMIN_BOOTSTRAP_EMAIL")
+    admin_password = environment.get("MUSIZEER_ADMIN_BOOTSTRAP_PASSWORD")
     if not admin_email or not admin_password:
         return
 
@@ -70,7 +68,7 @@ def _bootstrap_admin() -> None:
         try:
             hashed = user_auth.hash_new_password(admin_password)
         except user_auth.WeakPassword as weak:
-            logger.error("ADMIN_BOOTSTRAP_PASSWORD was not used, no administrator was created: %s", weak)
+            logger.error("MUSIZEER_ADMIN_BOOTSTRAP_PASSWORD was not used, no administrator was created: %s", weak)
             return
         user = user_service.create_user(
             session,
@@ -97,7 +95,7 @@ def _ensure_system_user() -> None:
 
 
 def _require_auth_secret() -> None:
-    """With authentication enabled the sessions are signed with ``AUTH_SECRET``: refuse to start
+    """With authentication enabled the sessions are signed with ``MUSIZEER_AUTH_SECRET``: refuse to start
     on a missing, short or placeholder one. The ONE check, with no switch to skip it; it only runs
     when authentication is on (see ``tests/test_auth_secret_startup.py``)."""
     if get_config().auth_enabled:
@@ -106,27 +104,38 @@ def _require_auth_secret() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Musizerr...")
-    # Before the database is touched: the migration that encrypts the stored credentials needs the
-    # key, and nothing may run on credentials it cannot read or write (docs/credentials.md).
+    logger.info("Starting Musizeer...")
+    # An old variable name that is still set, and a mistyped MUSIZEER_ one, are said once, before anything else
+    # (ADR-0009 section 3); the values are never printed.
+    environment.report_at_start()
+    # Before the database is touched: nothing may run on credentials it cannot read or write
+    # (docs/credentials.md).
     credential_cipher.require_credentials_key()
-    init_db()
+    # The API never migrates: `init` did (backup, migrations, schema_info). It refuses to start on a schema
+    # that is behind or that it cannot use, and says what to do (ADR-0007 §4, docs/migrations.md).
+    try:
+        require_current_schema()
+    except SchemaError as refused:
+        logger.critical("%s", refused)
+        raise
     init_singletons()
     _require_auth_secret()
     _ensure_system_user()
     _bootstrap_admin()
-    logger.info("Musizerr ready.")
+    logger.info("Musizeer ready.")
     yield
-    logger.info("Shutting down Musizerr.")
+    logger.info("Shutting down Musizeer.")
 
 
 app = FastAPI(
-    title="Musizerr",
+    title="Musizeer",
     version=app_version.VERSION,
     lifespan=lifespan,
 )
 
 install_error_handlers(app)
+
+_ALLOWED_ORIGINS = environment.get("MUSIZEER_ALLOWED_ORIGINS").split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -149,6 +158,7 @@ app.include_router(playlists_router, prefix="",         tags=["playlists"])
 app.include_router(artist_router,   prefix="",          tags=["artist"])
 app.include_router(config_router,   prefix="",          tags=["config"])
 app.include_router(sources_router,  prefix="",          tags=["sources"])
+app.include_router(roots_router,    prefix="",          tags=["roots"])
 app.include_router(history_router,  prefix="",          tags=["history"])
 app.include_router(download_requests_router, prefix="", tags=["history"])
 app.include_router(stream_router,   prefix="",          tags=["stream"])

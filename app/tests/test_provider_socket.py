@@ -9,12 +9,12 @@ from pathlib import Path
 
 import pytest
 
-from musizerr_sdk import protocol
-from musizerr_sdk.auth import AccountModel, AuthDefinition, AuthFlow, AuthSession
-from musizerr_sdk.context import StaticProviderContext
-from musizerr_sdk.identifiers import Identifier
-from musizerr_sdk.interfaces import DownloadProvider, StorageProvider, StorageStreamResult, WorkspaceFile
-from musizerr_sdk.runner import ProviderRunner, RunnerServer
+from musizeer_sdk import protocol
+from musizeer_sdk.auth import AccountModel, AuthDefinition, AuthFlow, AuthSession
+from musizeer_sdk.context import StaticProviderContext
+from musizeer_sdk.identifiers import Identifier
+from musizeer_sdk.interfaces import DownloadProvider, StorageProvider, StorageStreamResult, WorkspaceFile
+from musizeer_sdk.runner import ProviderRunner, RunnerServer
 from services import provider_proxy
 from services.provider_proxy import ProviderCallFailed, TransportError
 from services.provider_socket import (
@@ -147,8 +147,8 @@ def listener(path: Path, behave) -> threading.Thread:
 
 
 def proxy_over(path: Path, tmp_path: Path):
-    from musizerr_sdk.context import StaticProviderContext
-    from musizerr_sdk.manifest import build
+    from musizeer_sdk.context import StaticProviderContext
+    from musizeer_sdk.manifest import build
 
     manifest = build(Filing(StaticProviderContext()))
     return provider_proxy.proxy_class(manifest.roles)(manifest, SocketTransport(path, "filing", lambda: tmp_path), StaticProviderContext())
@@ -190,7 +190,7 @@ def test_a_silent_provider_is_given_up_after_the_read_timeout(tmp_path):
     listener(path, lambda connection: release.wait(5))
     proxy = provider_proxy.proxy_class(("download", "storage"))
     transport = SocketTransport(path, "filing", lambda: tmp_path, read_timeout=0.2)
-    from musizerr_sdk.manifest import build
+    from musizeer_sdk.manifest import build
 
     instance = proxy(build(Filing(StaticProviderContext())), transport, StaticProviderContext())
     try:
@@ -325,3 +325,35 @@ def test_the_session_is_taken_out_of_the_arguments_before_the_workspace_is_found
 
     assert message["session_at"] == 2 and len(message["args"]) == 2
     assert rewriter.rewrite(message)["args"][1] == "/workspace/w1"
+
+
+# ------------------------------------------------------------------
+# While the working folder is not set (ADR-0008)
+# ------------------------------------------------------------------
+
+
+def test_a_call_that_carries_no_file_does_not_need_the_working_folder(world):
+    from services.folders import FoldersNotReady
+
+    def not_set():
+        raise FoldersNotReady("working_folder_not_set", "not set")
+
+    transport = SocketTransport(world.path, "filing", not_set)
+    proxy = provider_proxy.connect(transport, StaticProviderContext(provider_name="filing"))
+
+    assert proxy.name == "filing", "the provider describes itself"
+    assert proxy.exists("a.flac", SESSION) is True, "and answers a call that carries no workspace"
+
+
+def test_a_call_that_does_carry_a_workspace_is_refused_with_the_working_folders_own_error(world):
+    from services.folders import FoldersNotReady
+
+    def not_set():
+        raise FoldersNotReady("working_folder_not_set", "not set")
+
+    proxy = provider_proxy.connect(SocketTransport(world.path, "filing", not_set), StaticProviderContext(provider_name="filing"))
+
+    with pytest.raises(FoldersNotReady) as refused:
+        proxy.stream("chunks", str(make_workspace(world.root, "filing")), SESSION)
+
+    assert refused.value.error_code == "working_folder_not_set"

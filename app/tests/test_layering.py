@@ -1,7 +1,7 @@
 """
 Guardia strutturale della direzione delle dipendenze fra i package
 dell'app: ``routes``/``workers`` -> ``services`` -> ``core``/``db`` e
-``core`` -> ``musizerr_sdk`` (il contratto dei provider, in ``sdk/``);
+``core`` -> ``musizeer_sdk`` (il contratto dei provider, in ``sdk/``);
 l'SDK dipende solo dalla libreria standard. Nessun provider vive in questo
 repository: l'host li raggiunge solo dal gateway (regola 6). Cammina ogni file
 ``.py`` sotto ``app/`` con
@@ -245,8 +245,8 @@ def _sdk_imports() -> list[tuple[str, str, int]]:
     """(file, modulo importato, riga) per ogni import dei sorgenti dell'SDK."""
     import importlib.util
 
-    spec = importlib.util.find_spec("musizerr_sdk")
-    assert spec is not None and spec.submodule_search_locations, "musizerr_sdk non è installato"
+    spec = importlib.util.find_spec("musizeer_sdk")
+    assert spec is not None and spec.submodule_search_locations, "musizeer_sdk non è installato"
     root = list(spec.submodule_search_locations)[0]
     found = []
     for dirpath, dirnames, filenames in os.walk(root):
@@ -256,7 +256,7 @@ def _sdk_imports() -> list[tuple[str, str, int]]:
                 continue
             path = os.path.join(dirpath, fn)
             rel = os.path.relpath(path, root)
-            parts = ["musizerr_sdk", *rel[: -len(".py")].split(os.sep)]
+            parts = ["musizeer_sdk", *rel[: -len(".py")].split(os.sep)]
             is_package = parts[-1] == "__init__"
             module_name = ".".join(parts[:-1] if is_package else parts)
             with open(path, encoding="utf-8") as f:
@@ -270,7 +270,7 @@ def _sdk_imports() -> list[tuple[str, str, int]]:
 
 def test_the_sdk_has_sources_to_check():
     imports = _sdk_imports()
-    assert any(target.split(".")[0] == "musizerr_sdk" for _rel, target, _lineno in imports), (
+    assert any(target.split(".")[0] == "musizeer_sdk" for _rel, target, _lineno in imports), (
         "la regola 9 passerebbe a vuoto: nessun import dell'SDK su se stesso trovato"
     )
 
@@ -278,7 +278,7 @@ def test_the_sdk_has_sources_to_check():
 def test_the_sdk_imports_only_the_standard_library_and_itself():
     import sys
 
-    allowed = set(sys.stdlib_module_names) | {"musizerr_sdk"}
+    allowed = set(sys.stdlib_module_names) | {"musizeer_sdk"}
     offenders = [
         Violation(rel, lineno, target)
         for rel, target, lineno in _sdk_imports()
@@ -298,7 +298,7 @@ def test_the_sdk_imports_only_the_standard_library_and_itself():
 
 def _host_importers(prefixes: tuple[str, ...]) -> set[str]:
     """I file dell'host che importano uno dei moduli ``prefixes`` (o un nome da
-    uno di essi: ``from musizerr_sdk import runner``)."""
+    uno di essi: ``from musizeer_sdk import runner``)."""
     found = set()
     for path in _iter_py_files():
         rel = os.path.relpath(path, APP_ROOT)
@@ -317,7 +317,7 @@ def _host_importers(prefixes: tuple[str, ...]) -> set[str]:
 
 
 def test_the_host_never_imports_the_runner():
-    assert _host_importers(("musizerr_sdk.runner",)) == set()
+    assert _host_importers(("musizeer_sdk.runner",)) == set()
 
 
 def test_the_host_never_imports_the_loopback_transport_of_the_tests():
@@ -326,7 +326,7 @@ def test_the_host_never_imports_the_loopback_transport_of_the_tests():
 
 def test_the_scan_finds_the_importers_it_expects():
     # The scan would pass on an empty tree: it must find the importers it expects.
-    assert _host_importers(("musizerr_sdk.protocol",)) >= {os.path.join("services", "provider_proxy.py")}
+    assert _host_importers(("musizeer_sdk.protocol",)) >= {os.path.join("services", "provider_proxy.py")}
 
 
 
@@ -346,21 +346,28 @@ def test_only_the_registry_imports_the_socket_transport():
 
 
 def test_the_application_never_imports_the_gateway():
-    assert _host_importers(("musizerr_gateway",)) == set()
+    assert _host_importers(("musizeer_gateway",)) == set()
 
 
 # ---------------------------------------------------------------------------
 # Regola 12 — la chiave delle credenziali (docs/credentials.md). Il FORMATO e la
 # crittografia sono ``core/secret_box.py``: puro, riceve le chiavi come
-# argomenti, non legge l'ambiente. L'AMBIENTE (CREDENTIALS_KEY,
-# CREDENTIALS_KEY_PREVIOUS) lo legge un solo modulo, ``db/credential_cipher.py``:
-# nessun altro file dell'host ne scrive il nome, quindi nessuno può leggere la
-# chiave per conto suo, e il gateway (che non importa nulla dell'applicazione)
-# non la riceve mai.
+# argomenti, non legge l'ambiente. L'AMBIENTE lo legge UN solo modulo per
+# processo, ``core/environment.py`` (il registro, ADR-0009), e i NOMI delle
+# variabili della chiave (MUSIZEER_CREDENTIALS_KEY e _PREVIOUS, con i vecchi
+# nomi che il registro tiene per il messaggio di avvio) li scrivono solo il
+# registro e ``db/credential_cipher.py``: nessun altro file dell'host ne scrive
+# il nome, quindi nessuno può leggere la chiave per conto suo, e il gateway
+# (che non importa nulla dell'applicazione) non la riceve mai.
 # ---------------------------------------------------------------------------
 
-KEY_VARIABLES = {"CREDENTIALS_KEY", "CREDENTIALS_KEY_PREVIOUS"}
-ENVIRONMENT_OWNER = os.path.join("db", "credential_cipher.py")
+KEY_VARIABLES = {
+    "MUSIZEER_CREDENTIALS_KEY", "MUSIZEER_CREDENTIALS_KEY_PREVIOUS",
+    "CREDENTIALS_KEY", "CREDENTIALS_KEY_PREVIOUS",
+}
+ENVIRONMENT_REGISTRY = os.path.join("core", "environment.py")
+CIPHER = os.path.join("db", "credential_cipher.py")
+KEY_NAMERS = {ENVIRONMENT_REGISTRY, CIPHER}
 
 
 def _application_sources():
@@ -377,23 +384,23 @@ def _application_sources():
                     yield os.path.relpath(path, APP_ROOT), ast.parse(f.read(), filename=path)
 
 
-def test_only_the_credential_cipher_names_the_key_variables():
+def test_only_the_registry_and_the_credential_cipher_name_the_key_variables():
     offenders = [
         Violation(rel, node.lineno, node.value)
-        for rel, tree in _application_sources() if rel != ENVIRONMENT_OWNER
+        for rel, tree in _application_sources() if rel not in KEY_NAMERS
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in KEY_VARIABLES
     ]
-    _fail_on(offenders, "un modulo diverso da db/credential_cipher.py nomina la variabile della chiave delle credenziali")
+    _fail_on(offenders, "un modulo diverso da core/environment.py e db/credential_cipher.py nomina la variabile della chiave delle credenziali")
 
 
-def test_the_credential_cipher_is_where_the_scan_expects_it():
+def test_the_key_variables_are_named_where_the_scan_expects_them():
     owners = {
         rel for rel, tree in _application_sources()
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant) and node.value in KEY_VARIABLES
     }
-    assert owners == {ENVIRONMENT_OWNER}
+    assert owners == KEY_NAMERS
 
 
 def test_the_secret_box_is_pure():
@@ -405,7 +412,49 @@ def test_the_secret_box_is_pure():
         for alias in (node.names if isinstance(node, ast.Import) else [node])
     }
     assert imported <= {"__future__", "base64", "binascii", "typing", "cryptography"}, imported
-    assert "os" not in imported, "the keys come in as arguments: the environment is db/credential_cipher.py's"
+    assert "os" not in imported, "the keys come in as arguments: the environment is core/environment.py's"
+
+
+# ---------------------------------------------------------------------------
+# Regola 14 — UN lettore dell'ambiente per processo (ADR-0009, regola 2). Solo
+# ``core/environment.py`` tocca ``os.environ`` / ``os.getenv``: nomi, default e
+# obbligatorieta' stanno nel suo registro, e l'avviso su un vecchio nome o su un
+# refuso (``MUSIZEER_AUTH_SECERT``) esiste proprio perche' tutto passa da li.
+# Vale per ogni file sotto ``app/`` tranne i test (migrazioni e script inclusi).
+# ---------------------------------------------------------------------------
+
+ENVIRONMENT_ACCESS = {"environ", "environb", "getenv", "getenvb", "putenv", "unsetenv"}
+
+
+def environment_access(tree: ast.AST) -> list[tuple[int, str]]:
+    """Where a tree reads or writes the process environment: ``os.environ``, ``os.getenv``..., or a name taken
+    from ``os`` by ``from os import environ``."""
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in ENVIRONMENT_ACCESS and isinstance(node.value, ast.Name) and node.value.id == "os":
+            found.append((node.lineno, f"os.{node.attr}"))
+        elif isinstance(node, ast.ImportFrom) and node.module == "os":
+            found += [(node.lineno, f"from os import {alias.name}") for alias in node.names if alias.name in ENVIRONMENT_ACCESS]
+    return found
+
+
+def test_only_the_environment_registry_reads_the_process_environment():
+    offenders = [
+        Violation(rel, line, what)
+        for rel, tree in _application_sources() if rel != ENVIRONMENT_REGISTRY
+        for line, what in environment_access(tree)
+    ]
+    _fail_on(offenders, "solo core/environment.py legge l'ambiente del processo: aggiungi la variabile al registro")
+
+
+def test_the_environment_scan_finds_what_it_looks_for():
+    """The scan is not vacuous: the registry itself reads the environment, and the detector sees every spelling."""
+    registry = dict(_application_sources())[ENVIRONMENT_REGISTRY]
+    assert environment_access(registry), "the registry reads os.environ"
+    spelled = ast.parse("import os\nfrom os import environ, getenv, path\nos.environ['A']\nos.getenv('B')\nos.putenv('C', 'D')")
+    assert [what for _, what in environment_access(spelled)] == [
+        "from os import environ", "from os import getenv", "os.environ", "os.getenv", "os.putenv",
+    ]
 
 
 # ---------------------------------------------------------------------------

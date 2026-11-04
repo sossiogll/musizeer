@@ -1,5 +1,5 @@
 {
-  "name": "musizerr-e2e",
+  "name": "musizeer-e2e",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -8,7 +8,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.55.1",
     "@types/node": "^22.0.0",
     "typescript": "~5.8.3"
   },

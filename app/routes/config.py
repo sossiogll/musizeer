@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from core.auth_manager import AuthError
-from musizerr_sdk.auth import AuthFlow
+from musizeer_sdk.auth import AuthFlow
 from core.interfaces import metadata_capabilities
 from core.settings_resolver import (
     PROVIDER_CATEGORY_GETTERS,
@@ -25,6 +25,7 @@ from routes.deps import (
 )
 from services.auth import auth_manager_for
 from services.credentials import own_store, shared_store, user_store
+from services.gateway_sync import GatewaySync
 from services.linked_accounts import credential_fields, personal_state, shared_state
 from services.settings import SettingsService, SettingsWriteError
 
@@ -137,10 +138,15 @@ def patch_settings(
     anziano che possa accedere); ignorato in ogni altro caso.
     """
     service = SettingsService(session, config, registry)
+    updates = body.model_dump(exclude_none=True)
     try:
-        return service.write_values(body.model_dump(exclude_none=True), user, adopt_into=adopt_into)
+        values = service.write_values(updates, user, adopt_into=adopt_into)
     except SettingsWriteError as exc:
         _raise_for_write_error(exc)
+    if service.folder_keys_among(updates):
+        # The gateway learns the working folder (and the folders it grants) now, not at its next check (ADR-0008).
+        GatewaySync().push(session)
+    return values
 
 
 @router.get("/providers/public")
@@ -154,7 +160,7 @@ def list_public_providers(registry: RegistryDep, priority: MetadataPriorityDep):
     registrati, con in coda quelli che la lista non nomina, per ordine di
     installazione): ``metadata_priority`` e ``metadata`` li elencano tutti,
     una volta sola; ``metadata_capabilities`` le chiavi di
-    ``musizerr_sdk.capabilities`` che ognuno dichiara."""
+    ``musizeer_sdk.capabilities`` che ognuno dichiara."""
     labels: dict[str, str] = {}
     for getter_name in PROVIDER_CATEGORY_GETTERS:
         for provider in getattr(registry, getter_name)():
@@ -322,7 +328,7 @@ def _provider_info(
     if library_available is not None:
         extra["library_available"] = library_available
     if "metadata" in provider.roles:
-        # Optional capabilities it declares (musizerr_sdk.capabilities), and those the
+        # Optional capabilities it declares (musizeer_sdk.capabilities), and those the
         # viewer's OWN connection was not granted the permission for (made
         # before the provider asked for it): the UI says "reconnect".
         extra["capabilities"] = metadata_capabilities(provider)

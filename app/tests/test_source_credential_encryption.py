@@ -66,7 +66,7 @@ def test_the_token_of_a_source_is_stored_sealed_and_used_as_it_is(world):
 def test_the_gateway_is_given_the_plain_token_in_memory_only(world):
     source = _add_private_source(world)
     world.session.add(InstalledProvider(
-        source_id=source.id, name="lrclib", image="ghcr.io/o/lrclib", digest=DIGEST_A, provider_api_version=5, label="lrclib",
+        source_id=source.id, name="lrclib", image="ghcr.io/o/lrclib", digest=DIGEST_A, provider_api_version=6, label="lrclib",
         roles=json.dumps(["lyrics"]), permissions=json.dumps({}),
     ))
     world.session.commit()
@@ -116,7 +116,7 @@ def test_editing_something_else_does_not_rewrite_the_token(world):
 def test_with_the_wrong_key_the_source_has_no_token_and_nothing_is_overwritten(world, monkeypatch, caplog):
     source = _add_private_source(world)
     world.session.add(InstalledProvider(
-        source_id=source.id, name="lrclib", image="ghcr.io/o/lrclib", digest=DIGEST_A, provider_api_version=5, label="lrclib",
+        source_id=source.id, name="lrclib", image="ghcr.io/o/lrclib", digest=DIGEST_A, provider_api_version=6, label="lrclib",
         roles=json.dumps(["lyrics"]), permissions=json.dumps({}),
     ))
     world.session.commit()
@@ -134,7 +134,7 @@ def test_with_the_wrong_key_the_source_has_no_token_and_nothing_is_overwritten(w
     # An edit that does not name the token leaves the sealed text where it is (so the key can come back).
     world.manager().edit_source(source.id, enabled=False)
     assert _stored(world) == before
-    assert TOKEN not in caplog.text and "CREDENTIALS_KEY" in caplog.text
+    assert TOKEN not in caplog.text and "MUSIZEER_CREDENTIALS_KEY" in caplog.text
 
     use_keys(monkeypatch, KEY)
     world.session.expire_all()

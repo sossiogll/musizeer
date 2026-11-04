@@ -14,6 +14,7 @@ element.
 | `player-heart-shuffle` | The bottom player's heart of a library track toggles at once and the row of the same track follows it (then it is put back); shuffle keeps the track playing first, the queue panel shows the shuffled order and Next follows it. Needs a trending track in the library on Home. |
 
 | `download-requests` | The approval policy with two people at once: the e2e user asks for the whole discography of a trending artist whose provider declares the `discography` capability (a kind that waits under the default policy) and the page says "Waiting for approval"; the e2e administrator, on any page, sees the badge on Administration, finds the request in Administration › Requests and denies it with a reason; the user reads the denial in a toast without reloading and finds it, with the reason, in Downloads › Requests. Nothing is ever queued (it is denied), and a request left waiting by a failure is cancelled at the end (and at the start of the next run). Skipped when the e2e user's policy lets an artist through at once, no trending artist has a provider that can give a discography, or the artist is already all in the library. Needs the e2e administrator (below). |
+| `root-folders` | Root folders (ADR-0008): while the working folder is not set the user sees the warning and a download is refused with `working_folder_not_set`; the administrator follows the warning's link, adds a root folder with the picker, sets the working folder with the folder control, and the warning and the refusal go away. Changes the instance's folders, so it runs only where none is set, and puts it back (working folder cleared, root deleted) in the end. Needs the e2e administrator (below). |
 
 ## Run
 
@@ -33,9 +34,9 @@ The script:
    into the instance); `download-requests` needs it;
 3. creates or resets both accounts in the API container
    (`python -m scripts.e2e_user`);
-4. runs Playwright in `mcr.microsoft.com/playwright:v1.55.0-noble`, on the
+4. runs Playwright in `mcr.microsoft.com/playwright:v1.55.1-noble`, on the
    stack's network, against the Vite dev server (`http://frontend:5173`,
-   allowed in `musizerr-ui/vite.config.ts`).
+   allowed in `musizeer-ui/vite.config.ts`).
 
 Nothing is installed on the host: Node, pnpm and the browsers live in the
 container (`node_modules` is an anonymous volume, the pnpm store stays in
@@ -51,5 +52,5 @@ and the discover answers).
 Type-check the suite in the same container:
 
 ```sh
-docker run --rm -v "$PWD/e2e:/e2e" -v /e2e/node_modules -w /e2e mcr.microsoft.com/playwright:v1.55.0-noble sh -c 'corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm typecheck'
+docker run --rm -v "$PWD/e2e:/e2e" -v /e2e/node_modules -w /e2e mcr.microsoft.com/playwright:v1.55.1-noble sh -c 'corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm typecheck'
 ```

@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 from typing import Annotated, Literal, Optional
 
 import jwt as pyjwt
@@ -9,8 +8,9 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
+from core import environment
 from core.auth import AccountTarget
-from musizerr_sdk.auth import AuthFlow
+from musizeer_sdk.auth import AuthFlow
 from core.auth_manager import AuthError
 from core.auth_strategies import build_fallback_session
 from core.settings_resolver import find_provider_by_name
@@ -27,7 +27,7 @@ from .deps import AdminUserDep, ConfigDep, CurrentUserDep, RegistryDep, SessionD
 from .provider_login import finish_callback as finish_login_callback
 from .users_auth import LoginBody, login as account_login
 
-_FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+_FRONTEND_URL = environment.frontend_url()
 
 router = APIRouter()
 

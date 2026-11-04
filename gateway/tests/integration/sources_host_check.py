@@ -10,10 +10,10 @@ from __future__ import annotations
 import os
 import sys
 
-os.environ.setdefault("DATA_DIR", "/tmp/data")
+os.environ.setdefault("MUSIZEER_DATA_DIR", "/tmp/data")
 
-from musizerr_sdk.auth import AuthSession  # noqa: E402
-from musizerr_sdk.models import Track  # noqa: E402
+from musizeer_sdk.auth import AuthSession  # noqa: E402
+from musizeer_sdk.models import Track  # noqa: E402
 from services.provider_registry import ProviderRegistry  # noqa: E402
 
 

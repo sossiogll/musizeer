@@ -7,7 +7,7 @@ Create Date: 2026-10-10
 Signing in through a provider a user has linked (``core/provider_login.py``):
 
 - ``provider_credentials.external_id``: the stable id the provider gave the
-  account (``musizerr_sdk.auth.AccountIdentity``), written when a user links an
+  account (``musizeer_sdk.auth.AccountIdentity``), written when a user links an
   account of a provider that can sign users in. ``uq_provider_credential_
   external`` makes it unique per provider among the rows that carry one: an
   account of a provider is linked to ONE user.
@@ -33,6 +33,9 @@ revision: str = "0037_provider_login"
 down_revision: Union[str, None] = "0036_linked_accounts"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+# ADR-0007 section 4: what this migration is for the release that ships it (docs/migrations.md).
+phase = "expand"  # adds a nullable column, a defaulted column and tables
 
 _HAS_EXTERNAL_ID = sa.text("external_id IS NOT NULL")
 
