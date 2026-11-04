@@ -9,6 +9,7 @@ psycopg[binary]==3.3.6   # driver PostgreSQL (DATABASE_URL=postgresql+psycopg://
 
 # Task queue
 celery==5.6.3
+kombu==5.6.2   # pinned: 5.7.0 dropped its packaging requirement but kombu.transport.redis still imports it
 redis==5.3.1
 
 # HTTP client
