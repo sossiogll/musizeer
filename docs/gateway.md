@@ -184,7 +184,9 @@ one request per connection) and refuses everything else. It allows:
 
 Loopback, link-local (cloud metadata), unspecified, multicast and reserved addresses are never reachable. The
 proxy resolves the name itself and connects to the address it checked, so a name cannot change meaning
-between the check and the connection. Every refusal is logged
+between the check and the connection. A resolver that answers "try again" (`EAI_AGAIN`: a lost or late DNS reply) is asked
+again three times, after 0.2, 0.5 and 1 s, before the destination is refused (`egress.RESOLVE_RETRY_DELAYS`): one lost reply
+must not fail a call, and a library sync makes thousands of lookups. A name that does not exist is refused at once. Every refusal is logged
 (`egress refused: provider=… target=… reason=…`) and kept in the provider's `egress.refused` of `ctl list`.
 
 The answers the proxy gives itself carry `X-Musizeer-Egress`:
