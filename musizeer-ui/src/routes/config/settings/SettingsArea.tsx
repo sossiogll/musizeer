@@ -279,6 +279,20 @@ export function SettingRow({
     );
   }
 
+  // A folder is a root and a path with a preview: wider than a control that sits beside its label.
+  if (def.type === "folder") {
+    return (
+      <div className="space-y-2">
+        <div>
+          <div className="text-sm font-medium">{label}</div>
+          {description && <div className="text-xs text-muted-foreground">{description}</div>}
+          {reason && <UnavailableReason reason={reason} />}
+        </div>
+        <SettingControl def={def} value={value} onChange={onChange} disabled={isLockedUnavailable(def, value)} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 sm:pr-4">

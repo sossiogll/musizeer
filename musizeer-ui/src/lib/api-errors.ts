@@ -23,6 +23,8 @@ export interface ApiErrorBody {
   provider?: string;
   /** `playlist_full`: the most tracks a playlist may hold. */
   max_tracks?: number;
+  /** `root_in_use`, `confirmation_required`: the folder settings that point at the root folder. */
+  used_by?: { key: string; label: string; group: string }[];
 }
 
 export interface ClassifiedError {

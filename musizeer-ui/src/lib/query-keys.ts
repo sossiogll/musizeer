@@ -57,6 +57,12 @@ export const queryKeys = {
   sourceCatalog: (id: string) => ["sources", id, "catalog"] as const,
   installedProviders: ["installed-providers"] as const,
   providerGateway: ["provider-gateway"] as const,
+  /** The root folders and every folder setting (admin). */
+  roots: ["roots"] as const,
+  /** What the folder picker lists at a path (null: the mounted volumes). */
+  rootBrowse: (folder: string | null) => ["root-browse", folder] as const,
+  /** The schema of the settings: the labels of the folder settings come from it. */
+  settingsSchema: ["settings-schema"] as const,
   discover: (section: string) => ["discover", section] as const,
 } as const;
 

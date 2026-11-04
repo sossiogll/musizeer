@@ -9,13 +9,14 @@ const SECTIONS = [
   { to: "/admin/users", labelKey: "adminArea.users" },
   { to: "/admin/requests", labelKey: "adminArea.requests", counts: "requests" },
   { to: "/admin/providers", labelKey: "adminArea.providers" },
+  { to: "/admin/roots", labelKey: "adminArea.roots" },
   { to: "/admin/routines", labelKey: "adminArea.routines" },
   { to: "/admin/sources", labelKey: "adminArea.sources" },
   { to: "/admin/duplicates", labelKey: "adminArea.duplicates" },
   { to: "/admin/system", labelKey: "adminArea.system" },
 ] as const satisfies readonly { to: string; labelKey: MessageKey; counts?: "requests" }[];
 
-/** Administration: one place for users, requests, providers, routines, sources, duplicates and system settings. */
+/** Administration: one place for users, requests, providers, root folders, routines, sources, duplicates and system settings. */
 export function AdminLayout() {
   const { t } = useI18n();
   const waiting = usePendingRequestCount();

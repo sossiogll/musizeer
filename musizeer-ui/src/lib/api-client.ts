@@ -1,6 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import type {
   AccountTarget,
+  AddRootInput,
   AdminDownloadRequest,
   Album,
   AlbumEdition,
@@ -18,6 +19,7 @@ import type {
   DownloadResponse,
   DownloadStatus,
   DownloadsResponse,
+  EditRootInput,
   LibraryJobs,
   LibraryJobStarted,
   LinkedAccount,
@@ -38,6 +40,10 @@ import type {
   RelatedTracksResponse,
   RequestKind,
   RequestStatus,
+  RootBrowse,
+  RootCheck,
+  RootFolder,
+  RootFolderList,
   FavoriteChange,
   FollowResult,
   FavoriteTrack,
@@ -910,6 +916,29 @@ export const updateProvider = (name: string, digest: string) =>
 
 export const uninstallProvider = (name: string) =>
   http.delete(path`/sources/providers/${name}`).then((r) => r.data);
+
+// ------------------------------------------------------------------
+// Root folders (admin, ADR-0008)
+// ------------------------------------------------------------------
+
+/** The root folders and every folder setting with what it resolves to. */
+export const getRoots = () => http.get<RootFolderList>("/roots").then((r) => r.data);
+
+export const addRoot = (input: AddRootInput) => http.post<RootFolder>("/roots", input).then((r) => r.data);
+
+/** Moving a root that folder settings point at needs `confirm`: without it the server answers 409 `confirmation_required`. */
+export const editRoot = (id: string, changes: EditRootInput, confirm = false) =>
+  http.patch<RootFolder>(path`/roots/${id}`, changes, { params: confirm ? { confirm: true } : {} }).then((r) => r.data);
+
+/** A root in use is refused (409 `root_in_use`, with the settings that use it). */
+export const deleteRoot = (id: string) => http.delete<{ ok: true }>(path`/roots/${id}`).then((r) => r.data);
+
+/** The explicit Check: what the gateway and the application see at the root's path. */
+export const checkRoot = (id: string) => http.get<RootCheck>(path`/roots/${id}/check`).then((r) => r.data);
+
+/** The folder picker: the subdirectories of `folder` (inside a mounted volume) or, without one, the mounted volumes. */
+export const browseRoots = (folder: string | null) =>
+  http.get<RootBrowse>("/roots/browse", { params: folder ? { path: folder } : {} }).then((r) => r.data);
 
 // ------------------------------------------------------------------
 // Favorites and the likes imported from other services

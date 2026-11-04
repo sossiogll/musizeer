@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { SettingDef } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { FolderControl } from "@/components/folders/FolderControl";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -134,6 +135,17 @@ function ControlInput({ def, value, onChange, disabled }: SettingControlProps) {
           placeholder={def.secret ? "••••••" : ""}
           value={value === null || value === undefined ? "" : String(value)}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+        />
+      );
+
+    case "folder":
+      return (
+        <FolderControl
+          value={value}
+          onChange={onChange}
+          label={settingLabel(def, tx)}
+          suggestedPath={def.suggested_path}
           disabled={disabled}
         />
       );

@@ -36,6 +36,7 @@ const pages = {
   adminDuplicates: () => import("./routes/admin/duplicates"),
   routines: () => import("./routes/config/RoutinesPanel"),
   sources: () => import("./routes/admin/sources"),
+  roots: () => import("./routes/admin/roots"),
   settings: () => import("./routes/config/settings/SettingsArea"),
   about: () => import("./routes/about"),
 };
@@ -65,6 +66,7 @@ const AdminProvidersPage = lazyRouteComponent(pages.adminProviders, "AdminProvid
 const AdminDuplicatesPage = lazyRouteComponent(pages.adminDuplicates, "AdminDuplicatesPage");
 const RoutinesPanel = lazyRouteComponent(pages.routines, "RoutinesPanel");
 const AdminSourcesPage = lazyRouteComponent(pages.sources, "AdminSourcesPage");
+const AdminRootsPage = lazyRouteComponent(pages.roots, "AdminRootsPage");
 const SettingsArea = lazyRouteComponent(pages.settings, "SettingsArea");
 const AboutPage = lazyRouteComponent(pages.about, "AboutPage");
 
@@ -267,7 +269,14 @@ const adminIndexRoute = createRoute({
 const adminUsersRoute = createRoute({ getParentRoute: () => adminRoute, path: "/users", component: AdminUsersPage });
 const adminRequestsRoute = createRoute({ getParentRoute: () => adminRoute, path: "/requests", component: AdminRequestsPage });
 const adminProvidersRoute = createRoute({ getParentRoute: () => adminRoute, path: "/providers", component: AdminProvidersPage });
-const adminRoutinesRoute = createRoute({ getParentRoute: () => adminRoute, path: "/routines", component: RoutinesPanel });
+// ?folder=<setting key> opens that folder's dialog: where the warning of a missing folder leads (ADR-0008).
+const adminRootsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/roots",
+  component: AdminRootsPage,
+  validateSearch: (search: Record<string, unknown>): { folder?: string } => (typeof search.folder === "string" && search.folder ? { folder: search.folder } : {}),
+});
+const adminRoutinesRoute =createRoute({ getParentRoute: () => adminRoute, path: "/routines", component: RoutinesPanel });
 const adminSourcesRoute = createRoute({ getParentRoute: () => adminRoute, path: "/sources", component: AdminSourcesPage });
 const adminDuplicatesRoute = createRoute({ getParentRoute: () => adminRoute, path: "/duplicates", component: AdminDuplicatesPage });
 const adminSystemRoute = createRoute({
@@ -301,6 +310,7 @@ const routeTree = rootRoute.addChildren([
     adminUsersRoute,
     adminRequestsRoute,
     adminProvidersRoute,
+    adminRootsRoute,
     adminRoutinesRoute,
     adminSourcesRoute,
     adminDuplicatesRoute,
