@@ -3,6 +3,6 @@
 # In dev (docker) e' gia' installato dallo stage development del Dockerfile.
 -r requirements.txt
 
-pytest==9.1.1
+pytest==9.2.0
 pytest-cov==7.1.0
-hypothesis==6.170.9
+hypothesis==6.170.14
