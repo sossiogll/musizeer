@@ -1,0 +1,30 @@
+name: milestones
+
+# A merge into dev: its pull request joins the milestone `next` (ADR-0007 §6, scripts/release_milestones.py). The
+# release takes `next` in the release job of images.yml.
+#
+# On push, not on pull_request_target: GitHub blocks that event by default in public repositories from 2026-12-02,
+# and it would run from master, not from dev. A push to dev is merged code, whoever wrote the pull request (a fork,
+# Dependabot), and its token is the one this file asks for. A failure here is red and costs nothing: the release
+# puts in its milestone every pull request it brings, assigned or not.
+on:
+  push:
+    branches: [dev]
+
+permissions: {}
+
+jobs:
+  next:
+    name: the merged pull request joins next
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write # the milestone of a pull request is written through its issue
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: python3 scripts/release_milestones.py assign "$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
