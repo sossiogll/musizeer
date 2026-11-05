@@ -239,3 +239,30 @@ workers, the gateway, the web app) is always updated by hand.
 - Adding to the contract becomes routine; changing it costs an adapter and a deprecation period.
 - Schema changes that remove things take two releases instead of one.
 - The About page and `/health` say exactly what an instance runs, which also helps support.
+
+## Amendment (2026-11-05): release milestones
+
+The site that shows the project reads a repository's milestones, so a release is also a milestone with the pull requests
+it brought. This adds to §6 and changes nothing about how a version is computed.
+
+- **`next`** is always open and holds the pull requests merged into `dev` since the last release. A merge into `dev`
+  assigns its pull request (`.github/workflows/milestones.yml`, `scripts/release_milestones.py assign`). A pull request
+  closed without a merge, one into `master` and one into a `release/*` branch never enter; the merge of that branch
+  into `dev` does, as in the release notes.
+- **A release** renames `next` to its tag and closes it, then opens a new `next`, in the `release` job of `images.yml`
+  after the GitHub release is created. It has to be there: events created with `GITHUB_TOKEN` start no other workflow. The
+  milestone ends up holding exactly the pull requests of the release notes: one merged into `dev` after the merge
+  into `master` goes back to `next`, and one whose assignment failed is added. `due_on` holds the date of the release,
+  because GitHub sets `closed_at` to the time of the call. A merge into `master` with no release (`chore` alone) touches
+  nothing.
+- **Running again writes nothing that is already right**, so a repeated run makes no duplicates and a missing `next` is
+  created. A failure of this step does not fail the published release: it is an error in the log.
+- **Repair and history:** `scripts/release_milestones.py backfill` reads the tags and shows the milestones of the releases
+  already out, and `--apply` writes them. It never renames `next`. It needs `GH_TOKEN` and `GITHUB_REPOSITORY`, and a clone
+  with the tags.
+- **Why `push` on `dev` and not `pull_request_target`.** GitHub blocks `pull_request_target` by default in public
+  repositories from 2026-12-02, and that event runs the workflow from the default branch, `master`. `pull_request` would
+  not do either: a pull request from a fork has a read-only token. A push to `dev` is code already merged, and it is started
+  by whoever merged, so Dependabot's restrictions on its own events do not apply. The cost is that a pull request's identity
+  is looked up from the commit (`commits/{sha}/pulls`).
+- **The GitHub Project** reads the milestone from the pull requests. No workflow writes to it.

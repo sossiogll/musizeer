@@ -10,7 +10,8 @@ name: images
 # creates the GitHub release: notes by kind, the upgrade notes the pull requests wrote, the images,
 # release.json (what an instance's update check reads) and the files to install without cloning the repository
 # (docker-compose.yaml, the gateway's seccomp profile, env.example: scripts/package-release-assets.sh,
-# docs/deployment.md). Run by hand, it rebuilds the images, no release.
+# docs/deployment.md). Run by hand, it rebuilds the images, no release. The release takes the milestone `next`
+# (scripts/release_milestones.py, milestones.yml): it holds what the merges into dev brought.
 on:
   push:
     branches: [master]
@@ -45,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           notes=$RUNNER_TEMP/notes; mkdir -p "$notes"
-          : > "$notes/breaking.md"; : > "$notes/feature.md"; : > "$notes/fix.md"; : > "$notes/chore.md"; : > "$notes/upgrade.md"
+          : > "$notes/breaking.md"; : > "$notes/feature.md"; : > "$notes/fix.md"; : > "$notes/chore.md"; : > "$notes/upgrade.md"; : > "$notes/pull-requests.txt"
           last=$(git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null || true)
           range=${last:+$last..}HEAD
           # The pull requests merged since the last release: their merge commits ("Merge pull request #N").
@@ -53,6 +54,7 @@ jobs:
           for number in $numbers; do
             pr=$(gh pr view "$number" --json number,title,url,labels,body,baseRefName)
             [ "$(jq -r .baseRefName <<<"$pr")" = dev ] || continue # dev → master carries no change of its own
+            echo "$number" >> "$notes/pull-requests.txt"
             kind=$(jq -r '[.labels[].name | select(. == "breaking" or . == "feature" or . == "fix" or . == "chore")][0] // "chore"' <<<"$pr")
             jq -r '"- \(.title) ([#\(.number)](\(.url)))"' <<<"$pr" >> "$notes/$kind.md"
             # The "Upgrade notes" section of its description, comments and blank lines left out.
@@ -195,6 +197,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write # the milestone of the release
+      pull-requests: write # the milestone of a pull request is written through its issue
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -243,3 +247,11 @@ jobs:
           gh release create "v$VERSION" --verify-tag --title "Musizeer $VERSION" \
             --notes-file "$RUNNER_TEMP/notes.md" "$RUNNER_TEMP/release.json" \
             "$RUNNER_TEMP/assets/docker-compose.yaml" "$RUNNER_TEMP/assets/musizeer-gateway.seccomp.json" "$RUNNER_TEMP/assets/env.example"
+      # Only after the release exists, and never its failure: the release is public by now. A failure stays an error
+      # in the log, and `scripts/release_milestones.py backfill --apply` repairs it (ADR-0007, amendment of 2026-11-05).
+      - name: the milestone of the release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: python3 scripts/release_milestones.py release "v$VERSION" "$RUNNER_TEMP/notes/pull-requests.txt"
