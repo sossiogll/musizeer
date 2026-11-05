@@ -36,6 +36,8 @@ class FakeGitHub(script.GitHub):
         self.drop_milestones = False
         self.fail_on: tuple | None = None
         self.before_write = None
+        self.listing_lags_behind_a_rename = False
+        self.lagging: set[int] = set()
 
     def milestone(self, title: str, state: str = "open", due_on: str | None = None) -> dict:
         number = len(self.milestones) + 1
@@ -73,11 +75,15 @@ class FakeGitHub(script.GitHub):
             if method == "PATCH":
                 if "title" in body:
                     self._refuse_taken(body["title"])
+                    if self.listing_lags_behind_a_rename:
+                        self.lagging.add(found["number"])
                 found.update(body)
             return dict(found)
         if route.path == "issues":
             held = [{"number": i["number"]} for i in self.items.values() if i["milestone"] == int(query["milestone"][0])]
             assert query["state"] == ["all"], "a closed pull request counts"
+            if int(query["milestone"][0]) in self.lagging:
+                held = []
             return self._page(held, query)
         if match := re.fullmatch(r"issues/(\d+)", route.path):
             item = self.items.setdefault(int(match[1]), {"number": int(match[1]), "milestone": None})
@@ -208,6 +214,33 @@ class TestRelease:
         api.item(3)
         script.settle(api, TAG, {3}, take_next=True)
         assert api.held_by(TAG) == {3}
+
+    def test_a_listing_that_lags_behind_the_rename_loses_nothing_and_writes_nothing_needless(self, api):
+        current = api.milestone("next")
+        api.item(1, current)
+        api.item(9, current)
+        api.listing_lags_behind_a_rename = True
+        script.settle(api, TAG, {1}, take_next=True)
+        assert api.held_by(TAG) == {1}
+        assert api.held_by("next") == {9}
+        assert ("PATCH", "issues/1", {"milestone": current["number"]}) not in api.writes
+
+    def test_a_pull_request_that_joins_next_just_before_the_rename_goes_back_to_next(self, api):
+        current = api.milestone("next")
+        api.item(1, current)
+        api.before_write = lambda: api.item(9, current)
+        script.settle(api, TAG, {1}, take_next=True)
+        assert api.held_by(TAG) == {1}
+        assert api.held_by("next") == {9}
+
+    def test_what_next_held_does_not_count_when_another_run_made_the_tag_s_milestone(self, api):
+        current = api.milestone("next")
+        api.item(1, current)
+        api.before_write = lambda: api.milestone(TAG)
+        script.settle(api, TAG, {1}, take_next=True)
+        assert api.milestones[current["number"]]["title"] == "next"
+        assert api.held_by(TAG) == {1}
+        assert api.held_by("next") == set()
 
     def test_a_missing_next_does_not_stop_the_release_and_is_created(self, api):
         script.settle(api, TAG, {3}, take_next=True)
