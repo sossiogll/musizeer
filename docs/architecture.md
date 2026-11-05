@@ -104,7 +104,7 @@ How to read it:
 | `worker`, `worker-jobs`, `worker-maintenance` | The three Celery workers, one per queue ([Background work](#background-work)). |
 | `beat` | The one beat. In development it is embedded in `worker-maintenance` (`-B`). |
 | `init` | Applies the database migrations and exits. The API, the workers and beat start after it succeeded. It does not scan the library: that needs providers, which only run once the API has told the gateway what is installed. |
-| `provider-gateway` | Runs the providers ([The provider gateway](#the-provider-gateway-and-the-sandboxes)). Never `privileged`; it needs a seccomp profile and `systempaths=unconfined`. |
+| `provider-gateway` | Runs the providers ([The provider gateway](#the-provider-gateway-and-the-sandboxes)). Not `privileged` (only as a last resort, [deployment.md](deployment.md#when-nothing-else-works-a-privileged-gateway)); it needs a seccomp profile and `systempaths=unconfined`. |
 | `postgres`, `redis` | The database and the broker. |
 
 Volumes: `data` (the application's state), `downloads` (the library and the workspace directory, mounted by the

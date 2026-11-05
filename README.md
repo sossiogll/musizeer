@@ -43,7 +43,7 @@ files to download, the secrets, AppArmor and seccomp, the public URL, folders an
    MUSIZEER_ADMIN_BOOTSTRAP_PASSWORD=...
    MUSIZEER_PUBLIC_URL=http://your-server:8080   # the address people type; OAuth callbacks and sign-in redirects use it
    MUSIZEER_PORT=8080
-   # MUSIZEER_VERSION=1.2.0              # optional: pin a release (the tags of the GitHub releases); default latest
+   # MUSIZEER_VERSION=2.0.3              # optional: pin a release (the tags of the GitHub releases); default latest
    ```
 
    Keep `MUSIZEER_CREDENTIALS_KEY` with your database backups: without it the stored credentials cannot be read and every
@@ -62,8 +62,23 @@ files to download, the secrets, AppArmor and seccomp, the public URL, folders an
    you set no bootstrap variables the settings page asks you to create one at that moment (what you have in
    Musizeer by then becomes that account's, [`docs/permissions.md`](docs/permissions.md)). To update, pull
    again (or raise `MUSIZEER_VERSION`) and `up -d`: the init container migrates the database before the API and the workers
-   start. The gateway container is never `privileged`: it needs the seccomp profile, `apparmor=unconfined` and
+   start. The gateway container is not `privileged`: it needs the seccomp profile, `apparmor=unconfined` and
    `systempaths=unconfined`, which the compose file already sets ([why](docs/deployment.md#apparmor-and-seccomp)).
+   Administration › Providers says whether the sandboxes work (`sandbox unavailable: ...` ends with what to change).
+
+   **If the gateway still cannot build sandboxes** (a NAS, a host whose settings you cannot change), the last resort is
+   to run the gateway privileged, with a `docker-compose.override.yml` next to the compose file:
+
+   ```yaml
+   services:
+     provider-gateway:
+       privileged: true
+   ```
+
+   The providers still run in their sandboxes, but the container around them is no longer confined: a provider that
+   escaped its sandbox would have the whole host. **In that case install only the official providers**, the ones of the
+   catalog below, and no catalog or provider of anyone else
+   ([more](docs/deployment.md#when-nothing-else-works-a-privileged-gateway)).
 
    To build the images from the checkout instead (a fork, unreleased changes):
 
@@ -78,7 +93,14 @@ files to download, the secrets, AppArmor and seccomp, the public URL, folders an
    ```
 
    A private catalog is added with a token that can read it. Then configure the providers in Administration ›
-   Providers and connect your accounts in Settings.
+   Providers and connect your accounts in Settings. The official catalog has MusicBrainz and YouTube for the catalogs,
+   Lidarr for downloads (it hands them to a Lidarr server of yours), local and FTP storage, Navidrome, LRCLIB lyrics and
+   AcoustID: without a download provider nothing can be downloaded.
+
+4. In Administration › Root folders, set the **working folder** and the storage provider's **library folder**: downloads
+   are blocked until both are set. The compose file mounts `/downloads` and `/library` (a Docker volume); to use the music
+   folder you already have, mount it at `/library` in the gateway with the override file
+   ([Folders](docs/deployment.md#folders)).
 
 More: [the architecture overview](docs/architecture.md), [the deployment guide](docs/deployment.md), [PostgreSQL and moving from SQLite](docs/postgresql.md), [workers](docs/workers.md),
 [users and permissions](docs/permissions.md), [signing in through a provider](docs/provider-login.md),
