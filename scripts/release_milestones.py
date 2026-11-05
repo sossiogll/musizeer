@@ -138,28 +138,36 @@ def assign(api: GitHub, sha: str) -> None:
             join_next(api, pull["number"])
 
 
-def _take_next(api: GitHub, tag: str) -> dict | None:
+def _held(api: GitHub, milestone: dict) -> set[int]:
+    return {item["number"] for item in api.pages(f"issues?milestone={milestone['number']}&state=all")}
+
+
+def _take_next(api: GitHub, tag: str) -> tuple[dict | None, set[int]]:
+    """`next` renamed to the tag, and what it held: read first, since the first release found the listing empty right
+    after the rename, and a stray pull request missing from it would stay in the release."""
     current = find_milestone(api, NEXT)
     if current is None:
-        return None
+        return None, set()
+    held = _held(api, current)
     try:
-        return api.request("PATCH", f"milestones/{current['number']}", {"title": tag})
+        return api.request("PATCH", f"milestones/{current['number']}", {"title": tag}), held
     except GitHubError as exc:
         if exc.status != 422:
             raise
-        return None  # The tag's milestone exists already: another run got here first.
+        return None, set()  # The tag's milestone exists already: another run got here first.
 
 
 def settle(api: GitHub, tag: str, numbers: set[int], *, take_next: bool) -> None:
     """The tag's milestone holds exactly `numbers` and is closed, and `next` exists."""
     published_at = api.request("GET", f"releases/tags/{tag}")["published_at"]
     milestone = find_milestone(api, tag)
+    held: set[int] = set()
     if milestone is None and take_next:
-        milestone = _take_next(api, tag)
+        milestone, held = _take_next(api, tag)
     if milestone is None:
         milestone = ensure_milestone(api, tag)
 
-    held = {item["number"] for item in api.pages(f"issues?milestone={milestone['number']}&state=all")}
+    held |= _held(api, milestone)  # Also after a rename: a pull request may have joined just before it.
     for number in sorted(held - numbers):
         set_milestone(api, number, ensure_milestone(api, NEXT))
         print(f"#{number} is not in {tag}: back to {NEXT}")
