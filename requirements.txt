@@ -24,4 +24,4 @@ cryptography==50.0.2   # Fernet: encryption of the stored credentials (docs/cred
 mutagen==1.48.1        # lettura/scrittura tag audio (library scan, tag-repair)
 
 # Dev only — auto-reload del Celery worker in docker-compose.dev.yml
-watchdog==6.0.0
+watchdog==7.1.0
