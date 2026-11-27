@@ -104,3 +104,17 @@ def test_a_library_the_sync_provider_cannot_see_stays_off(run):
     assert sync.availability_calls == TIMEOUT // INTERVAL
     assert len(storage.deleted) == 1
     assert list(workspace_root.glob("*/*")) == [], "no call workspace is left (only the provider folders)"
+
+
+def test_the_outcome_is_kept_for_the_page_of_the_root_folders(run, monkeypatch):
+    """ADR-0008 §8: the result is stored with the library folder it ran against (here a storage whose library is not a
+    folder of this machine: none), one row per music server, the latest outcome."""
+    from db import mapping_store
+
+    _run, _ = run
+    storage = FakeStorageProvider()
+    _run(storage, _MirrorSync(storage))
+    engine = maintenance.engine
+    with Session(engine) as session:
+        (seen,) = mapping_store.list_mappings(session)
+    assert (seen.provider, seen.role, seen.result, seen.target_folder) == ("mirror", "reader", "verified", None)

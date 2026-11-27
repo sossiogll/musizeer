@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-SDK_VERSION = "6.0.0"
+SDK_VERSION = "6.1.0"
 
 # The minor of a peer that does not say its version: the first of this major.
 BASELINE: tuple[int, int] = (6, 0)

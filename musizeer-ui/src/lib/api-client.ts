@@ -44,6 +44,8 @@ import type {
   RootCheck,
   RootFolder,
   RootFolderList,
+  RootMapping,
+  MappingOverview,
   FavoriteChange,
   FollowResult,
   FavoriteTrack,
@@ -939,6 +941,20 @@ export const checkRoot = (id: string) => http.get<RootCheck>(path`/roots/${id}/c
 /** The folder picker: the subdirectories of `folder` (inside a mounted volume) or, without one, the mounted volumes. */
 export const browseRoots = (folder: string | null) =>
   http.get<RootBrowse>("/roots/browse", { params: folder ? { path: folder } : {} }).then((r) => r.data);
+
+/** What other programs call the library: the delegates and their mappings, the music servers and their full-sync result. */
+export const getMappings = () => http.get<MappingOverview>("/mappings").then((r) => r.data);
+
+/** Find which folder of the delegate is the library (the probe, or a file it imported) and record it. */
+export const verifyMapping = (provider: string) =>
+  http.post<RootMapping>(path`/mappings/${provider}/verify`).then((r) => r.data);
+
+/** The fallback: the delegate's folder typed by the administrator, recorded unchecked. */
+export const typeMapping = (provider: string, remotePath: string) =>
+  http.put<RootMapping>(path`/mappings/${provider}`, { remote_path: remotePath }).then((r) => r.data);
+
+export const deleteMapping = (provider: string, id: string) =>
+  http.delete<{ ok: true }>(path`/mappings/${provider}/${id}`).then((r) => r.data);
 
 // ------------------------------------------------------------------
 // Favorites and the likes imported from other services

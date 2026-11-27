@@ -2117,6 +2117,115 @@ components:
         suggested_path:
           type: [string, "null"]
 
+    RootMapping:
+      type: object
+      required: [id, provider, role, remote_path, target_folder, method, result, detail, verified_at, state]
+      description: >
+        What another program calls the library. `role` `writer`: a delegate whose folder `remote_path` (its own
+        namespace) is the library; `reader`: a music server, whose own path is not known (`remote_path` empty) and
+        whose full-sync verification proved it reads the library. `target_folder` is the library folder it was
+        established against (null: not a folder of this machine). `method`: `probe`, `suffix` or `typed`; `result`:
+        `verified`, `typed` or `failed`; `state` as in the listing.
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        role:
+          type: string
+          enum: [writer, reader]
+        remote_path:
+          type: string
+        target_folder:
+          type: [string, "null"]
+        method:
+          type: string
+          enum: [probe, suffix, typed]
+        result:
+          type: string
+          enum: [verified, typed, failed]
+        detail:
+          type: string
+        verified_at:
+          type: string
+          format: date-time
+        state:
+          type: string
+          enum: [verified, typed, failed, verify_again]
+
+    MappingOverview:
+      type: object
+      required: [library, delegates, music_servers]
+      properties:
+        library:
+          type: object
+          required: [storage_provider, folder, set]
+          properties:
+            storage_provider:
+              type: [string, "null"]
+            folder:
+              type: [string, "null"]
+            set:
+              type: boolean
+        delegates:
+          type: array
+          items:
+            type: object
+            required: [provider, label, can_locate, import_roots, import_roots_error, unmapped_roots, mappings, notice]
+            properties:
+              provider:
+                type: string
+              label:
+                type: string
+              can_locate:
+                type: boolean
+              import_roots:
+                type: [array, "null"]
+                items:
+                  type: string
+              import_roots_error:
+                type: [string, "null"]
+              unmapped_roots:
+                type: array
+                items:
+                  type: string
+              mappings:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RootMapping"
+              notice:
+                type: [object, "null"]
+                required: [at, outside, unconfirmed, examples]
+                properties:
+                  at:
+                    type: string
+                    format: date-time
+                  outside:
+                    type: integer
+                  unconfirmed:
+                    type: integer
+                  examples:
+                    type: array
+                    items:
+                      type: string
+        music_servers:
+          type: array
+          items:
+            type: object
+            required: [provider, label, state, result]
+            properties:
+              provider:
+                type: string
+              label:
+                type: string
+              state:
+                type: string
+                enum: [verified, failed, verify_again, not_verified]
+              result:
+                oneOf:
+                  - type: "null"
+                  - $ref: "#/components/schemas/RootMapping"
+
     RootFolderList:
       type: object
       required: [roots, folders]
@@ -5177,6 +5286,153 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /mappings:
+    get:
+      operationId: listMappings
+      tags: [roots]
+      summary: What other programs call the library (admin)
+      description: >
+        The table "Other tools" of the root folders (ADR-0008 §7, §8), against the library folder of now (`library`).
+        `delegates`: every download provider that declares `supports_import_roots` or `supports_locate_in_import_roots`,
+        with the folders it imports into in its own namespace (`import_roots`; null with `import_roots_error`, the kind
+        of failure, when it did not answer), those no mapping covers (`unmapped_roots`), its mappings and its `notice`
+        (the last registration of a delegated download that found files outside the library, or files the storage does
+        not hold). `music_servers`: every sync provider with the outcome of its full-sync verification (`result`, null
+        when it never ran). A `state` is `verified`, `typed` (not checked), `failed`, `verify_again` (established against
+        another library folder) or, for a music server never verified, `not_verified`. Reading asks each delegate for
+        its import roots and writes nothing.
+      responses:
+        "200":
+          description: Delegates and music servers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MappingOverview"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /mappings/{provider}/verify:
+    post:
+      operationId: verifyMapping
+      tags: [roots]
+      summary: Find which folder of a delegate is the library (admin)
+      description: >
+        A delegate that can locate is verified by a probe: a marker folder `Musizeer Probe <random>` is stored in the
+        library through the storage provider, the delegate says where it sees it, and the marker is removed whatever
+        happens. Otherwise a file the delegate reported for a recent delegated download is looked for in the library
+        under the same relative path. The mapping found is recorded (and the delegate's notice cleared); when none is
+        found a mapping already recorded for the delegate is marked `failed`. Error codes:
+        `mapping_provider_not_found` (404), `working_folder_not_set`, `library_folder_not_set`,
+        `storage_provider_not_found` (409), `mapping_not_located` (422: the delegate does not see the probe, or no
+        reported file is in the library; the folder can then be typed), `mapping_verification_unavailable` (503: a
+        provider did not answer, `kind` says how).
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The mapping
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RootMapping"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/RootRefused"
+        "409":
+          $ref: "#/components/responses/RootRefused"
+        "422":
+          $ref: "#/components/responses/RootRefused"
+        "503":
+          $ref: "#/components/responses/RootRefused"
+
+  /mappings/{provider}:
+    put:
+      operationId: typeMapping
+      tags: [roots]
+      summary: Type the delegate's folder that is the library (admin)
+      description: >
+        The fallback when the verification cannot find it. The folder is absolute and normalized in the delegate's own
+        namespace; it is recorded as `typed`, not checked. Error codes: `mapping_provider_not_found` (404),
+        `mapping_path_invalid` (422).
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [remote_path]
+              properties:
+                remote_path:
+                  type: string
+      responses:
+        "200":
+          description: The mapping
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RootMapping"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/RootRefused"
+        "422":
+          $ref: "#/components/responses/RootRefused"
+
+  /mappings/{provider}/{mapping_id}:
+    delete:
+      operationId: deleteMapping
+      tags: [roots]
+      summary: Remove a mapping of a delegate (admin)
+      description: >
+        Delegated downloads that complete afterwards are no longer recorded through it. `mapping_not_found` (404).
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: mapping_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/RootRefused"
+
   /sources:
     get:
       operationId: listSources
@@ -7931,7 +8187,8 @@ paths:
       summary: Start the probe that checks the sync provider's full-sync mode (admin)
       description: >
         The probe writes a file through the storage provider from the working folder: while a folder is not set the
-        task's result is `{"status": "error", "error_code": "working_folder_not_set" | "library_folder_not_set"}`.
+        task's result is `{"status": "error", "error_code": "working_folder_not_set" | "library_folder_not_set"}`. The
+        outcome of a probe that ran is kept with the library folder it ran against (`GET /mappings`, `music_servers`).
       responses:
         "200":
           description: Task queued

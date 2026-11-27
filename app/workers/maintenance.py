@@ -39,7 +39,7 @@ from services.delegation import poll_for_requested_track
 from services.enrichment import check_sync_availability
 from services.progress import publish_download_progress
 from services.stream import resolve_sync_id
-from services import folders, held_uploads, library_reconcile, playlist_downloads, update_check
+from services import folders, held_uploads, library_reconcile, mappings, playlist_downloads, update_check
 from services.workspace import open_workspace, remove_stale_workspaces
 
 from .celery_app import celery, get_config, get_registry
@@ -123,6 +123,9 @@ def verify_full_sync(sync_name: str | None = None) -> dict:
                     logger.info("Full-sync verificato per '%s' → mode=full attivato", sync_name)
                 else:
                     logger.info("Full-sync NON verificato per '%s' (file di prova non comparso)", sync_name)
+                # The outcome is kept with the library folder it ran against (ADR-0008 §8): the page of the root
+                # folders shows it, and says "verify again" once the library folder is another one.
+                mappings.record_full_sync(session, config, registry, sync_name, found)
 
                 return {"status": "done", "full_sync": found, "sync_provider": sync_name}
             finally:
@@ -229,6 +232,8 @@ def reconcile_delegation(download_id: str, chain: str | None = None) -> dict:
 
     terminal = _apply_delegation_status(download_id, provider, prov_session, status, config, registry)
     if terminal:
+        if status.state == ds.DOWNLOADED:
+            _register_delegated_files(download_id, provider, prov_session, handle, config, registry)
         return {"status": status.state}
 
     # Non terminale E il provider ha risposto: solo questo tempo consuma il
@@ -442,6 +447,20 @@ def _apply_delegation_status(download_id, provider, prov_session, status, config
 
     publish_download_progress(download_id, state, "", track_id, registry)
     return state in ds.TERMINAL
+
+
+def _register_delegated_files(download_id, provider, prov_session, handle, config, registry) -> None:
+    """The files the delegate imported for this download, recorded in the library through the mapping of its folder
+    (ADR-0008 §7). Best effort: the download has landed whatever happens here, and the library scan and the sync index
+    remain the safety net."""
+    try:
+        with Session(engine) as session:
+            report = mappings.register_delegated(session, config, registry, provider, prov_session, handle)
+    except Exception as exc:  # noqa: BLE001 — the delegate or the storage did not answer: the download stays landed
+        logger.warning("Delegated files of download %s not registered (%s): %s", download_id, provider.name, exc)
+        return
+    if report is not None and report.indexed:
+        logger.info("Download %s: %d file(s) imported by %s recorded in the library", download_id, report.indexed, provider.name)
 
 
 def _resolve_conflicts(provider, prov_session, conflicts, config) -> bool:

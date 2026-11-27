@@ -63,6 +63,7 @@ DECLARED_QUERIES: dict[type, tuple[str, ...]] = {
         "restricts_playlist_tracks",
         "supports_isrc_lookup",
     ),
+    DownloadProvider: ("supports_import_roots", "supports_locate_in_import_roots"),
     StorageProvider: ("library_folder_setting",),
     SyncProvider: ("supports_likes", "supports_playlists"),
 }

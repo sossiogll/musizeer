@@ -4,11 +4,12 @@ import { Plus } from "lucide-react";
 import { ApiErrorMessage } from "@/components/ErrorMessage";
 import { FolderDialog } from "@/components/folders/FolderDialog";
 import { FoldersTable } from "@/components/folders/FoldersTable";
+import { OtherToolsTable } from "@/components/folders/OtherToolsTable";
 import { RootDialog, type RootTarget } from "@/components/folders/RootDialog";
 import { RootsTable } from "@/components/folders/RootsTable";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useRoots } from "@/hooks/useRoots";
+import { useMappings, useRoots } from "@/hooks/useRoots";
 import { useServerAction } from "@/hooks/useServerAction";
 import { useI18n } from "@/i18n";
 
@@ -19,6 +20,8 @@ import { useI18n } from "@/i18n";
  *   explicit Check, and which folder settings use it.
  * - Folders: every folder setting (the working folder, a storage provider's library folder), each a root folder plus a
  *   path inside it, edited here with the same control the settings use.
+ * - Other tools: the programs that import into the library by themselves (mapped by a probe) and the music servers that
+ *   read it (the full-sync verification).
  *
  * `?folder=<setting>` opens the dialog of that folder: it is where the warning of a missing folder leads. Nothing here
  * knows a provider by name; the rows and their labels come from the server.
@@ -30,6 +33,7 @@ export function AdminRootsPage() {
   const { folder: folderKey } = useSearch({ strict: false }) as { folder?: string };
   const [rootTarget, setRootTarget] = useState<RootTarget | null>(null);
   const { data, isLoading, error } = useRoots();
+  const tools = useMappings();
 
   const editingFolder = data?.folders.find((folder) => folder.key === folderKey) ?? null;
   const closeFolder = () => void navigate({ search: {}, replace: true });
@@ -62,6 +66,20 @@ export function AdminRootsPage() {
         {data && data.folders.length > 0 && (
           <FoldersTable folders={data.folders} onEdit={(folder) => void navigate({ search: { folder: folder.key }, replace: true })} />
         )}
+      </section>
+
+      <section aria-label={t("roots.tools.heading")} className="space-y-3">
+        <div className="space-y-1">
+          <h2 className="font-display text-lg font-semibold">{t("roots.tools.heading")}</h2>
+          <p className="text-sm text-muted-foreground">{t("roots.tools.intro")}</p>
+        </div>
+        {tools.isLoading && <Skeleton className="h-16 w-full" />}
+        {tools.error && <ApiErrorMessage error={tools.error} fallback={t("roots.tools.loadFailed")} className="text-sm text-destructive" />}
+        {tools.data && !tools.data.library.set && <p className="text-sm text-muted-foreground">{t("roots.tools.libraryNotSet")}</p>}
+        {tools.data && tools.data.delegates.length + tools.data.music_servers.length === 0 && (
+          <p className="text-sm text-muted-foreground">{t("roots.tools.empty")}</p>
+        )}
+        {tools.data && tools.data.delegates.length + tools.data.music_servers.length > 0 && <OtherToolsTable overview={tools.data} />}
       </section>
 
       <RootDialog target={rootTarget} onClose={() => setRootTarget(null)} />

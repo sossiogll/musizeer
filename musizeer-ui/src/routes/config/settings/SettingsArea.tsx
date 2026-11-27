@@ -371,6 +371,7 @@ export function CapabilityProviders({
 
 function FullSyncVerify() {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -384,6 +385,8 @@ function FullSyncVerify() {
         await new Promise((r) => setTimeout(r, 3000));
         const s = await getFullSyncVerifyStatus(task_id);
         if (s.ready) {
+          // The outcome is kept with the library folder: the page of the root folders reads it again.
+          void queryClient.invalidateQueries({ queryKey: queryKeys.mappings });
           if (s.result?.full_sync) {
             setStatus(t("settings.fullSyncVerified"));
             toast.success(t("settings.fullSyncActivatedToast"));

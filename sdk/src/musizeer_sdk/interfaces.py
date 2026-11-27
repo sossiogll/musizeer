@@ -430,6 +430,30 @@ class DownloadProvider(BaseProvider, ABC):
         Default: no-op."""
         return None
 
+    # --- Where a delegate imports (ADR-0008 §7, SDK 6.1) ---
+    # The external system puts the files into folders of its own, named in ITS namespace. The administrator maps
+    # them to the library; these say where they are. Data only: whether a folder is the library is the host's call.
+
+    def supports_import_roots(self) -> bool:
+        """Declared, never inferred: ``list_import_roots`` answers. Default: no."""
+        return False
+
+    def list_import_roots(self, session: AuthSession) -> list[str]:
+        """The folders the external system imports into, as IT names them (absolute paths of its own namespace,
+        e.g. the root folders of a library manager). Raises when the system did not answer: an empty list says it
+        has none. Default: none."""
+        return []
+
+    def supports_locate_in_import_roots(self) -> bool:
+        """Declared, never inferred: ``locate_in_import_roots`` answers. Default: no."""
+        return False
+
+    def locate_in_import_roots(self, name: str, session: AuthSession) -> str | None:
+        """Where the external system sees a folder called ``name`` directly inside one of its import roots: the full
+        path in its namespace, or ``None`` when it sees none. The host puts such a folder into the library and asks,
+        to learn which of the system's folders the library is. Raises when the system did not answer."""
+        return None
+
     # --- Push da sistema esterno (capability opzionali) ---
     # Default: nessun supporto → il chiamante genericamente lo salta/ignora.
     # Nessun vocabolario di eventi/payload specifico di un sistema attraversa

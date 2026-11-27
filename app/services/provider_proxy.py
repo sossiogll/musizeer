@@ -162,6 +162,10 @@ def _forwarder(name: str, original: Any) -> Any:
 
 def _declared_query(name: str, original: Any) -> Any:
     def declared(self):
+        # A provider built on an older minor of the SDK does not declare a query added after it (ADR-0007 §3.1): it
+        # answers what the contract's default answers, which never reaches the provider.
+        if name not in self.manifest.declarations:
+            return original(self)
         return self.manifest.declarations[name]
 
     declared.__name__ = name

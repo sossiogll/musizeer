@@ -966,6 +966,47 @@ export interface FolderSetting extends FolderSettingRef {
   suggested_path: string | null;
 }
 
+export type MappingState = "verified" | "typed" | "failed" | "verify_again";
+
+/** What another program calls the library (`role` writer: a delegate's folder; reader: a music server). ADR-0008 §7, §8. */
+export interface RootMapping {
+  id: string;
+  provider: string;
+  role: "writer" | "reader";
+  remote_path: string;
+  target_folder: string | null;
+  method: "probe" | "suffix" | "typed";
+  result: "verified" | "typed" | "failed";
+  detail: string;
+  verified_at: string;
+  state: MappingState;
+}
+
+export interface DelegateTool {
+  provider: string;
+  label: string;
+  can_locate: boolean;
+  /** Null when it did not answer (`import_roots_error`). */
+  import_roots: string[] | null;
+  import_roots_error: string | null;
+  unmapped_roots: string[];
+  mappings: RootMapping[];
+  notice: { at: string; outside: number; unconfirmed: number; examples: string[] } | null;
+}
+
+export interface MusicServerTool {
+  provider: string;
+  label: string;
+  state: MappingState | "not_verified";
+  result: RootMapping | null;
+}
+
+export interface MappingOverview {
+  library: { storage_provider: string | null; folder: string | null; set: boolean };
+  delegates: DelegateTool[];
+  music_servers: MusicServerTool[];
+}
+
 export interface RootFolderList {
   roots: RootFolder[];
   folders: FolderSetting[];

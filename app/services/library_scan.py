@@ -124,11 +124,13 @@ def index_library_files(
     auth: AuthSession,
     workspace_root: Path,
     session: Session,
+    source: str = "scan",
 ) -> tuple[int, int]:
     """Una ``LibraryEntry`` per ogni file audio di ``paths`` non ancora
     indicizzato, collegata alla traccia descritta dai suoi tag (nessuna se i
-    tag non bastano a riconoscerla). Ritorna quanti file audio ha trovato e
-    quanti ne ha indicizzati."""
+    tag non bastano a riconoscerla). ``source`` dice chi l'ha trovato: la
+    scansione, o un delegato che l'ha importato (``services/mappings.py``).
+    Ritorna quanti file audio ha trovato e quanti ne ha indicizzati."""
     found = count = 0
     for relative in paths:
         if not is_library_audio(relative):
@@ -143,7 +145,7 @@ def index_library_files(
             track_id=find_or_create_track(track, session).internal_id if track else None,
             file_path=relative,
             file_format=PurePosixPath(relative).suffix.lstrip(".").lower(),
-            source="scan",
+            source=source,
             storage_provider=storage_name,
         ))
         session.commit()
