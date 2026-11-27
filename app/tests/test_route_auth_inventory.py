@@ -192,6 +192,10 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("PATCH", "/roots/{root_id}"): "admin",
     ("DELETE", "/roots/{root_id}"): "admin",
     ("GET", "/roots/{root_id}/check"): "admin",
+    ("GET", "/mappings"): "admin",
+    ("POST", "/mappings/{provider}/verify"): "admin",
+    ("PUT", "/mappings/{provider}"): "admin",
+    ("DELETE", "/mappings/{provider}/{mapping_id}"): "admin",
     # --- provider sources (routes/sources.py)
     ("GET", "/sources"): "admin",
     ("POST", "/sources"): "admin",

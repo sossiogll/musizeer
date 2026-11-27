@@ -59,6 +59,8 @@ export const queryKeys = {
   providerGateway: ["provider-gateway"] as const,
   /** The root folders and every folder setting (admin). */
   roots: ["roots"] as const,
+  /** What other programs call the library: delegates and music servers (admin). */
+  mappings: ["mappings"] as const,
   /** What the folder picker lists at a path (null: the mounted volumes). */
   rootBrowse: (folder: string | null) => ["root-browse", folder] as const,
   /** The schema of the settings: the labels of the folder settings come from it. */

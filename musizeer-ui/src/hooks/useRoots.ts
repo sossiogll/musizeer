@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getRoots, getSettingsSchema } from "@/lib/api-client";
+import { getMappings, getRoots, getSettingsSchema } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useI18n } from "@/i18n";
 import type { FolderSettingRef } from "@/types";
@@ -26,4 +26,9 @@ export function useFolderLabel(): (ref: Pick<FolderSettingRef, "key" | "label">)
     },
     [definitions, tx],
   );
+}
+
+/** What other programs call the library (administrators only): the table "Other tools" of the root folders. */
+export function useMappings() {
+  return useQuery({ queryKey: queryKeys.mappings, queryFn: getMappings });
 }

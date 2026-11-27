@@ -524,3 +524,28 @@ Where the code differs from, or settles, what the record leaves open:
   `/workspace` and the socket transport asks the host for the working folder only for a call that carries a file.
 - **`root_mappings` is not created.** The delegate mapping (steps 5 and 6) is for the ordinary minor after this release.
 
+
+## Implementation notes (steps 5 and 6, added on 2026-11-27)
+
+The record is unchanged; this is how the minor after the breaking release settles what it leaves open.
+
+- **Files.** `core/mappings.py` (the pure rules: a folder of another program, the lexical translation on path boundaries, the
+  probe's answer, the suffix candidates), `db/mapping_store.py`, `services/mappings.py` (verification, the page, the
+  registration of delegated files, the full-sync result), `routes/mappings.py` (`GET /mappings`, `POST /mappings/{provider}/verify`,
+  `PUT /mappings/{provider}`, `DELETE /mappings/{provider}/{mapping_id}`), migration `0047` (expand).
+- **The SDK 6.1 queries are two**, `supports_import_roots` and `supports_locate_in_import_roots`, one per method: a delegate may
+  list where it imports without being able to locate a folder (it is then verified by suffix). A provider built on 6.0 does not
+  declare them; the host's proxy answers the SDK default without asking it.
+- **`root_mappings` holds the full-sync result too**, as the table of §7 allows: `role` `reader`, `remote_path` empty (the music
+  server's own path is not something the host learns), one row per sync provider with the latest outcome. The same table gives
+  both rows of "Other tools" their "verify again" when the library folder now resolves elsewhere. A mapping also records
+  `method` (`probe`, `suffix`, `typed`) and `result` (`verified`, `typed`, `failed`) next to `verified_at`.
+- **The verification is synchronous** (the route answers with the mapping): locating a folder does not wait for a scan, unlike
+  the full-sync probe. A probe the delegate does not see is 422 `mapping_not_located`, and marks the delegate's existing mappings
+  `failed`; a provider that does not answer is 503 `mapping_verification_unavailable`.
+- **Registering delegated files** happens when a delegated download is judged `downloaded` (the reconciler), best effort: the
+  files are read like the library scan reads a file, so each entry is linked to the track its tags describe. "Imported outside
+  the library" and "mapped but the storage does not hold it" are counted in the delegate's notice (`host_state`), which a new
+  verification clears.
+- **The probe leaves an empty folder.** `StorageProvider.delete` removes a file, so the folder `Musizeer Probe <random>` stays
+  in the library, empty. Removing it needs a contract addition (or a storage provider that prunes empty parents); not decided.

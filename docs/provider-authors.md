@@ -111,6 +111,20 @@ the admin sees it before installing, and the gateway enforces it.
   renames, or uses the service's atomic upload. The host checks the stored size
   (`size`) before it counts the file as landed.
 
+- **A delegate's import roots** (`DownloadProvider`, SDK 6.1, ADR-0008 §7). A
+  download provider that hands the job to a system importing into folders of its
+  own (a library manager) says so: `supports_import_roots()` with
+  `list_import_roots(session)`, the folders it imports into as THAT system names
+  them (`["/music"]`), and `supports_locate_in_import_roots()` with
+  `locate_in_import_roots(name, session)`, where it sees a folder called `name`
+  directly inside one of them (`"/music/Musizeer Probe 1a2b"`, or `None`). The
+  administrator maps one of those folders to the library: the host puts a folder
+  `Musizeer Probe <random>` into the library and asks you where you see it. Both
+  raise when the system did not answer or refused (a wrong key): an empty list or
+  `None` is read as "there is none", which would mark a good mapping failed. Once
+  mapped, the files `list_delegated_files` reports for a completed delegation are
+  recorded in the library.
+
 ## What it gets, what it returns
 
 - **The context** (`self.context`): its settings, the HTTP, connect, download

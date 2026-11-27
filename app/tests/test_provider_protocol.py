@@ -121,6 +121,8 @@ SAMPLES: dict[str, Sample] = {
     "list_delegated_files": Sample(("h", SESSION), [FileRef("/f.flac", True, 1000, 44100, "x")]),
     "delete_file": Sample((FileRef("/f.flac"), SESSION), True),
     "request_rescan": Sample((SESSION,), None),
+    "list_import_roots": Sample((SESSION,), ["/music", "/data/Music Library"]),
+    "locate_in_import_roots": Sample(("Musizeer Probe 1a2b", SESSION), "/music/Musizeer Probe 1a2b"),
     "delegation_event_handle": Sample(({"event": "done", "job_id": 7, "nested": {"a": [1, None]}},), "7"),
     "register_push_endpoint": Sample(("https://host/hook", SESSION), "created"),
     # StorageProvider
@@ -291,14 +293,15 @@ def test_the_declarations_are_the_manifests_and_cost_no_call():
     answers = (
         proxy.supports_login(), proxy.is_library_available(), proxy.supports_discography(), proxy.supports_user_library(),
         proxy.supports_unlike_saved_track(), proxy.restricts_playlist_tracks(), proxy.supports_isrc_lookup(),
-        proxy.supports_likes(), proxy.supports_playlists(), proxy.streams_full_tracks, proxy.supported_identifier_types,
+        proxy.supports_likes(), proxy.supports_playlists(), proxy.supports_import_roots(),
+        proxy.supports_locate_in_import_roots(), proxy.streams_full_tracks, proxy.supported_identifier_types,
         proxy.max_concurrent_downloads, proxy.supports_fuzzy, proxy.enabled_by_default, proxy.supports_stream_offset,
         proxy.config_schema(), proxy.name, proxy.label, proxy.auth, proxy.implements("get_track"),
     )
 
     assert len(transport.requests) == described == 1, "only the describe went over the transport"
-    assert answers[:9] == (False, None, False, False, False, False, False, False, False)
-    assert answers[9:15] == (True, frozenset({"isrc"}), 2, True, True, True)
+    assert answers[:11] == (False, None, False, False, False, False, False, False, False, False, False)
+    assert answers[11:17] == (True, frozenset({"isrc"}), 2, True, True, True)
     assert proxy.supported_identifier_types == {"isrc"}
 
 

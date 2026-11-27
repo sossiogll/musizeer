@@ -203,7 +203,7 @@ class LibraryEntry(SQLModel, table=True):
     track_id: Optional[str] = Field(default=None, foreign_key="tracks.internal_id", index=True)
     file_path: str = Field(unique=True)   # relativo a base_dir
     file_format: str                       # "mp3" | "flac" | "ogg"
-    source: str = Field(default="download")  # "download" | "scan"
+    source: str = Field(default="download")  # "download" | "scan" | "delegate" (imported by a delegate, ADR-0008 §7)
     # Nessun default hardcoded qui (Golden Rule, CLAUDE.md: nessun nome di
     # provider in db/) — ogni chiamante passa il nome del provider di storage
     # risolto (workers/tasks.py, services/library_scan.py). Il
@@ -836,6 +836,34 @@ class RootFolder(SQLModel, table=True):
     checked_at: Optional[datetime] = Field(sa_type=UTCDateTime, default=None)
     created_at: datetime = Field(sa_type=UTCDateTime, default_factory=_now)
     updated_at: datetime = Field(sa_type=UTCDateTime, default_factory=_now)
+
+
+class RootMapping(SQLModel, table=True):
+    """What another program calls the library (ADR-0008 §7, §8): one row per program and folder of its own.
+
+    ``role`` is ``writer`` for a download provider that delegates to a system importing into the library (``remote_path``
+    is that system's folder, in ITS namespace: a library manager's ``/music``) and ``reader`` for a sync provider, the music
+    server that reads the library (its own path is not something the host learns: ``remote_path`` is empty, the full-sync
+    verification proves the folder is the same). ``target_folder`` is the library folder the row was established against,
+    as the host resolved it then (``None``: the library is not a folder of this machine); when the library folder resolves
+    to something else now, the row is to verify again. ``method`` says how it was established (``probe``, ``suffix``,
+    ``typed``; a reader's is ``probe``), ``result`` what came of it (``verified``, ``typed``, ``failed``), ``detail`` why,
+    ``verified_at`` when. ``provider`` is the provider's name, like every provider name stored as data (ADR-0002)."""
+    __tablename__ = "root_mappings"
+    __table_args__ = (
+        UniqueConstraint("provider", "role", "remote_path", name="uq_root_mapping"),
+    )
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    provider: str
+    role: str
+    remote_path: str = Field(default="")
+    target_folder: Optional[str] = Field(default=None)
+    method: str
+    result: str
+    detail: str = Field(default="")
+    verified_at: datetime = Field(sa_type=UTCDateTime, default_factory=_now)
+    created_at: datetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 
 class HostState(SQLModel, table=True):

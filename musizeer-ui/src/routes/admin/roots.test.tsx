@@ -4,13 +4,17 @@ import { AxiosError, type AxiosResponse } from "axios";
 import { connectivityMock } from "@/test/connectivity-mock";
 import { renderPage } from "@/test/render";
 import { checkReport, folder, libraryFolder, root } from "@/test/roots";
-import type { FolderSetting, RootFolder } from "@/types";
+import type { FolderSetting, MappingOverview, RootFolder, RootMapping } from "@/types";
 import { AdminRootsPage } from "./roots";
 
 vi.mock("@/lib/connectivity", async () => (await import("@/test/connectivity-mock")).connectivityModule());
 
 let roots: RootFolder[];
 let folders: FolderSetting[];
+let overview: MappingOverview;
+const mockVerifyMapping = vi.fn();
+const mockTypeMapping = vi.fn();
+const mockDeleteMapping = vi.fn();
 const mockAdd = vi.fn();
 const mockEdit = vi.fn();
 const mockDelete = vi.fn();
@@ -32,7 +36,18 @@ vi.mock("@/lib/api-client", async () => ({
   checkRoot: (...a: unknown[]) => mockCheck(...a),
   patchSettings: (...a: unknown[]) => mockPatch(...a),
   browseRoots: (...a: unknown[]) => mockBrowse(...a),
+  getMappings: async () => overview,
+  verifyMapping: (...a: unknown[]) => mockVerifyMapping(...a),
+  typeMapping: (...a: unknown[]) => mockTypeMapping(...a),
+  deleteMapping: (...a: unknown[]) => mockDeleteMapping(...a),
 }));
+
+function mapping(over: Partial<RootMapping> = {}): RootMapping {
+  return {
+    id: "m1", provider: "importer", role: "writer", remote_path: "/music", target_folder: "/library", method: "probe",
+    result: "verified", detail: "", verified_at: "2026-11-27T10:00:00Z", state: "verified", ...over,
+  };
+}
 
 const render = (url = "/admin/roots") =>
   renderPage(AdminRootsPage, { path: "/admin/roots", url, validateSearch: (s) => (typeof s.folder === "string" ? { folder: s.folder } : {}) });
@@ -44,6 +59,10 @@ function refused(status: number, code: string, message: string, extra: object = 
 
 beforeEach(() => {
   connectivityMock.reset();
+  overview = { library: { storage_provider: "local", folder: "/library", set: true }, delegates: [], music_servers: [] };
+  mockVerifyMapping.mockReset().mockResolvedValue(mapping());
+  mockTypeMapping.mockReset().mockResolvedValue(mapping({ method: "typed", result: "typed", state: "typed" }));
+  mockDeleteMapping.mockReset().mockResolvedValue({ ok: true });
   roots = [
     root({ id: "r1", label: "Downloads", path: "/downloads", used_by: [{ key: "workspace_dir", label: "Cartella di lavoro", group: "files" }] }),
     root({ id: "r2", label: "Library", path: "/library", state: "refused", reason: "not writable" }),
@@ -314,5 +333,62 @@ describe("Folders table", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add a root folder" }));
 
     expect(await screen.findByText("Add a root folder", { selector: "h2" })).toBeInTheDocument();
+  });
+});
+
+describe("Other tools", () => {
+  const delegate = (over = {}) => ({
+    provider: "importer", label: "Importer", can_locate: true, import_roots: ["/music", "/other"], import_roots_error: null,
+    unmapped_roots: ["/other"], mappings: [mapping()], notice: null, ...over,
+  });
+
+  it("shows where a delegate imports, the folder that is the library and what is not mapped", async () => {
+    overview.delegates = [delegate({ notice: { at: "2026-11-27T10:00:00Z", outside: 2, unconfirmed: 1, examples: [] } })];
+    overview.music_servers = [{ provider: "server", label: "Server", state: "not_verified", result: null }];
+    render();
+
+    const section = await screen.findByRole("region", { name: "Other tools" });
+    expect(await within(section).findByText("/music, /other")).toBeInTheDocument();
+    expect(within(section).getByText("/music is the library")).toBeInTheDocument();
+    expect(within(section).getByText("Verified")).toBeInTheDocument();
+    expect(within(section).getByText(/\/other is not mapped to the library/)).toBeInTheDocument();
+    expect(within(section).getByText(/2 file\(s\) outside the library you declared, 1 not found/)).toBeInTheDocument();
+    expect(within(section).getByText("Reads the library")).toBeInTheDocument();
+    expect(within(section).getByText("Not verified")).toBeInTheDocument();
+  });
+
+  it("verifies a delegate, types its folder and removes a mapping", async () => {
+    overview.delegates = [delegate()];
+    render();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Verify where Importer sees the library" }));
+    await waitFor(() => expect(mockVerifyMapping).toHaveBeenCalledWith("importer"));
+    expect(mockToast.success).toHaveBeenCalledWith("Importer sees the library as /music");
+
+    fireEvent.click(screen.getByRole("button", { name: "Type the folder" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Folder of Importer" }), { target: { value: "/data/music" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mockTypeMapping).toHaveBeenCalledWith("importer", "/data/music"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove the mapping of /music" }));
+    await waitFor(() => expect(mockDeleteMapping).toHaveBeenCalledWith("importer", "m1"));
+  });
+
+  it("words a refused verification by its code", async () => {
+    overview.delegates = [delegate()];
+    mockVerifyMapping.mockRejectedValue(refused(422, "mapping_not_located", "not seen"));
+    render();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Verify where Importer sees the library" }));
+    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith(expect.stringMatching(/did not show where it sees the library/)));
+  });
+
+  it("does not offer a verification while the library folder is not set", async () => {
+    overview.library = { storage_provider: "local", folder: null, set: false };
+    overview.delegates = [delegate()];
+    render();
+
+    expect(await screen.findByRole("button", { name: "Verify where Importer sees the library" })).toBeDisabled();
+    expect(screen.getAllByText("Set the library folder first: there is nothing to map yet.").length).toBeGreaterThan(0);
   });
 });

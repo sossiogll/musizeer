@@ -14,7 +14,7 @@ import pytest
 from musizeer_sdk import manifest as manifest_module, protocol, wire
 from musizeer_sdk.auth import AccountModel, AuthDefinition, AuthFlow, AuthSession
 from musizeer_sdk.context import StaticProviderContext
-from musizeer_sdk.interfaces import PROVIDER_API_VERSION, LyricsProvider
+from musizeer_sdk.interfaces import PROVIDER_API_VERSION, DownloadProvider, LyricsProvider
 from musizeer_sdk.version import SDK_VERSION
 from services.provider_proxy import connect
 
@@ -73,3 +73,42 @@ def test_a_call_is_encoded_for_the_providers_sdk(sdk_version, sent):
     (call,) = transport.calls
     assert call["sdk"] == SDK_VERSION
     assert set(call["args"][0]) - {"$"} == sent
+
+
+class Delegate(DownloadProvider):
+    name = "delegate"
+    label = "Delegate"
+    provider_api_version = PROVIDER_API_VERSION
+    auth = AuthDefinition(flow=AuthFlow.NONE, account_model=AccountModel.NONE)
+
+    def validate_config(self, config):
+        return True
+
+    def test_connection(self, session):
+        return None
+
+    def download_by_id(self, identifier, workspace, session):
+        return None
+
+    def supports_import_roots(self):
+        return True
+
+
+def test_a_query_added_after_the_providers_sdk_answers_the_contracts_default():
+    """A provider built on 6.0 never declared ``supports_import_roots`` (6.1): the host reads the default, and asks
+    the provider nothing."""
+    built = manifest_module.build(Delegate(StaticProviderContext()))
+    older = {name: value for name, value in built.declarations.items() if name != "supports_import_roots"}
+
+    class Describe(Recording):
+        def __init__(self, manifest):
+            self.manifest = manifest
+            self.calls = []
+
+    current = connect(Describe(dataclasses.replace(built, sdk_version="6.1.0")), StaticProviderContext())
+    transport = Describe(dataclasses.replace(built, declarations=older, sdk_version="6.0.0"))
+    old = connect(transport, StaticProviderContext())
+
+    assert current.supports_import_roots() is True
+    assert old.supports_import_roots() is False
+    assert transport.calls == []

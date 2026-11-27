@@ -238,6 +238,14 @@ forms) are not read; the app and the gateway log an error naming what replaced t
 - **The music itself** is wherever your storage provider puts it: `/library` above. A named volume lives in
   `/var/lib/docker/volumes`; replace `downloads` and `library` with bind mounts in the override file for all services that
   mount them if you want folders of your own.
+- **Other tools** (Administration > Root folders). A download provider that hands albums to a library manager (one that
+  imports into folders of its own, such as `/music` for the manager) is mapped to the library with **Verify**: Musizeer puts a
+  folder `Musizeer Probe <random>` into the library and asks the manager where it sees it, then removes its file (the name is fixed so
+  that the manager's logs are explicable; the storage contract removes files, not folders, so an empty folder of that name is
+  left in the library and can be deleted by hand). The manager's folder
+  must be the same disk folder as the library folder. Once mapped, what the manager imports is in Musizeer's library as soon as
+  the delegation completes; a file it imports elsewhere is reported on the row. A music server's row shows the outcome of the
+  full-sync verification (Settings > Library), with the library folder it ran against.
 - **An install made before roots existed** is converted once, when the gateway first answers: the working folder it had
   (or the old default) becomes a root plus `.musizeer-work`, a provider folder typed as a path becomes a root plus a path.
   What cannot be expressed (not mounted, not writable) is left unset and the warning says which setting and why. The old

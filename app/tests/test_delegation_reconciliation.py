@@ -420,3 +420,41 @@ def test_sweep_ignores_terminal_records(isolated_engine, config, monkeypatch):
 
     assert resumed == []
     assert result["checked"] == 0
+
+
+# ------------------------------------------------------------------
+# 5. A delegated download that lands is recorded in the library (ADR-0008 §7)
+# ------------------------------------------------------------------
+
+def test_a_landed_delegation_registers_its_files_and_a_failure_there_leaves_it_landed(isolated_engine, config, monkeypatch):
+    engine, _ = isolated_engine
+    seen: list[tuple[str, str]] = []
+
+    def register(session, config_, registry, provider, prov_session, handle):
+        seen.append((provider.name, handle))
+        raise ConnectionError("storage unreachable")
+
+    monkeypatch.setattr(maintenance.mappings, "register_delegated", register)
+    provider = _TrackAwareProvider(status_sequence=[DelegationStatus(state=ds.DOWNLOADED)])
+    monkeypatch.setattr(maintenance, "get_registry", lambda: _registry(provider))
+    monkeypatch.setattr(maintenance, "get_config", lambda: config)
+    download_id = _make_download(engine, handle="42")
+
+    assert maintenance.reconcile_delegation(download_id)["status"] == ds.DOWNLOADED
+    assert seen == [("trackaware", "42")]
+    with Session(engine) as session:
+        assert session.get(Download, download_id).status == ds.DOWNLOADED
+
+
+def test_a_delegation_still_running_registers_nothing(isolated_engine, config, monkeypatch):
+    engine, _ = isolated_engine
+    seen: list[str] = []
+    monkeypatch.setattr(maintenance.mappings, "register_delegated", lambda *a: seen.append("called"))
+    _fake_requeue(monkeypatch)
+    provider = _TrackAwareProvider(status_sequence=[DelegationStatus(state=ds.DOWNLOADING)])
+    monkeypatch.setattr(maintenance, "get_registry", lambda: _registry(provider))
+    monkeypatch.setattr(maintenance, "get_config", lambda: config)
+
+    maintenance.reconcile_delegation(_make_download(engine))
+
+    assert seen == []
