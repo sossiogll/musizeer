@@ -196,6 +196,16 @@ ROUTINES: tuple[RoutineDef, ...] = (
         default_interval_minutes=24 * 60,
         min_interval_minutes=60,
     ),
+    RoutineDef(
+        # Providers update by themselves (ADR-0007 §5.1): an update their catalog offers that is compatible and asks
+        # for exactly what the admin approved is applied (services/sources.py), any other waits for the admin. Turning
+        # the routine off makes every update wait. Every few hours: a provider's fix should not wait a day, and a run
+        # costs one read of each source's catalog.
+        key="auto_update_providers",
+        task_name="workers.maintenance.auto_update_providers",
+        default_interval_minutes=6 * 60,
+        min_interval_minutes=60,
+    ),
 )
 
 _BY_KEY: dict[str, RoutineDef] = {r.key: r for r in ROUTINES}

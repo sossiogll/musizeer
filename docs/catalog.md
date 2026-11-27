@@ -78,6 +78,17 @@ sees the difference with what they approved (hosts and wildcards, setting-named 
 added or removed; `grants_more` says whether it asks for more) and approving records the new
 digest and permissions.
 
+*Automatic update* (ADR-0007 §5.1). The routine `auto_update_providers` (Administration › Routines, on by
+default, every 6 hours) reads the catalog of every enabled source and applies by itself an update that is
+**compatible** (a provider contract this Musizeer runs) and asks for **exactly** what was approved: the same
+permissions and roles. Any difference, a smaller one included, waits for the admin as above. It goes through
+the same write as an approved update: the gateway is told the new set and pulls the pinned digest. The row
+records it as `approved_automatically` (with `approved_by` empty), with the digest it replaced
+(`previous_digest`) and the time (`approved_at`); the admins get a notice, and Providers says "Updated
+automatically". The write is conditional on the row the routine judged: an update the admin approved
+meanwhile is never overwritten. A catalog that cannot be read makes the run an error with its code; the
+others are still updated. Turning the routine off makes every update wait for the admin.
+
 *The gateway checks again.* It pulls the image, reads its labels before any layer, and refuses it if
 they differ from the roles and permissions it was sent. An image cannot gain a permission nobody
 approved, and one that asks for less than was approved is refused too (the approval must match what

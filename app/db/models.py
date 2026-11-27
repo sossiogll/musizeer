@@ -471,8 +471,11 @@ class InstalledProvider(SQLModel, table=True):
     ``Permissions`` (``core.catalog.permissions_to_dict``), ``roles`` a JSON list. A newer
     digest of the catalog is NOT stored: whether an update exists is decided when the
     catalog is read (it cannot go stale, and nothing has to refresh it). ``approved_by`` is
-    the id of the admin (NULL: approved from the host's shell) and has no foreign key on
-    purpose: it is an audit trail that outlives the account."""
+    the id of the admin (NULL: approved from the host's shell or by the automatic update) and
+    has no foreign key on purpose: it is an audit trail that outlives the account.
+    ``approved_automatically`` says the current digest was applied by the automatic update
+    (ADR-0007 §5.1: compatible, and asking for exactly what was approved before), and
+    ``previous_digest`` is the digest the last update replaced (NULL: never updated)."""
     __tablename__ = "installed_providers"
 
     id: str = Field(default_factory=_uuid, primary_key=True)
@@ -486,6 +489,8 @@ class InstalledProvider(SQLModel, table=True):
     permissions: str                                   # JSON: the permissions the admin approved
     approved_at: datetime = Field(sa_type=UTCDateTime, default_factory=_now)
     approved_by: Optional[str] = Field(default=None)
+    approved_automatically: bool = Field(default=False)
+    previous_digest: Optional[str] = Field(default=None)
     installed_at: datetime = Field(sa_type=UTCDateTime, default_factory=_now)
 
 

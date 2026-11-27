@@ -40,6 +40,7 @@ async def progress_stream(user: StreamUserDep):
     Formato evento:
         data: {"download_id": "...", "status": "<core.download_states>", ...}
         data: {"type": "library_job", "user_id": "...", "run": {...}}  (solo al proprietario)
+        data: {"type": "provider_update", "provider": {"name", "label", "from", "to"}}  (agli admin: un provider aggiornato da solo)
     """
     return StreamingResponse(
         sse_frames(_redis_messages(), user, _download_visibility(user)),

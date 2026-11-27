@@ -6,6 +6,9 @@ are OCI images pinned by digest. Installing records ``image@digest`` together wi
 APPROVED (roles and permissions); the database is the only source of truth for what is
 installed, and the gateway runs exactly that (``services/gateway_sync.py``). An UPDATE is a
 newer digest in the catalog that the admin approves, shown with the difference in permissions.
+The AUTOMATIC update (ADR-0007 §5.1, the routine ``auto_update_providers``) applies by itself, through
+the same write, only an update that is compatible and asks for exactly what was approved; any other
+waits for the admin.
 
 Whatever the admin looked at is what is recorded: install and update take the digest that was
 on screen and are refused (``catalog_changed``) if the catalog offers another one by the time
@@ -28,6 +31,7 @@ from typing import Any, Callable
 from urllib.parse import urlsplit
 
 import httpx
+from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -36,6 +40,7 @@ from core.catalog import (
     CatalogEntry,
     CatalogError,
     PermissionsDiff,
+    automatic_update_wait,
     diff_permissions,
     parse_catalog,
     permissions_from_dict,
@@ -55,6 +60,9 @@ MAX_CATALOG_BYTES = 2 * 1024 * 1024
 MAX_REDIRECTS = 5
 MAX_URL = 2000
 MAX_CREDENTIAL = 4096
+
+# The event the admins get on the progress stream when a provider was updated automatically.
+PROVIDER_UPDATE_EVENT = "provider_update"
 
 
 class SourceError(Exception):
@@ -159,6 +167,12 @@ def _origin(url: str) -> tuple[str, str, int]:
     return scheme, (parts.hostname or "").lower(), parts.port or (443 if scheme == "https" else 80)
 
 
+def short_digest(digest: str) -> str:
+    """The first 12 hex digits of a digest, as the admin's page shows it: the result of a routine is a summary
+    kept in a few thousand characters, and the full digest is on the installed provider's row."""
+    return digest.removeprefix("sha256:")[:12]
+
+
 def check_url(url: object) -> str:
     """The URL of a catalog if it is one an admin may add; else a 422 ``invalid_source_url``."""
     if not isinstance(url, str) or not url.strip() or len(url) > MAX_URL:
@@ -238,6 +252,8 @@ def installed_view(row: InstalledProvider, source: ProviderSource | None) -> dic
         "sends_source_token": bool(source and source.credential),
         "approved_at": utc_iso(row.approved_at),
         "approved_by": row.approved_by,
+        "approved_automatically": row.approved_automatically,
+        "previous_digest": row.previous_digest,
         "installed_at": utc_iso(row.installed_at),
     }
 
@@ -508,18 +524,105 @@ class SourceManager:
         if offer is None:
             raise SourceError("already_current", f"'{name}' is already what its catalog offers", 409)
         self._check_installable(offer.entry, digest)
-        entry = offer.entry
-        row.image, row.digest, row.provider_api_version, row.label = entry.image, entry.digest, entry.provider_api_version, entry.label
-        row.roles = json.dumps(list(entry.roles))
-        row.permissions = json.dumps(permissions_to_dict(entry.permissions), sort_keys=True)
-        row.approved_at, row.approved_by = _now(), approved_by
-        self.session.add(row)
-        self.session.flush()
+        self._apply_update(row, offer.entry, approved_by=approved_by, automatic=False)
+        self._providers_changed()
+        return row
+
+    def _apply_update(self, row: InstalledProvider, entry: CatalogEntry, *, approved_by: str | None, automatic: bool) -> None:
+        """The one write of an update, committed: ``row`` becomes ``entry`` as approved. It is conditional on the
+        row still being what the caller judged (its digest, permissions and roles): a row changed meanwhile (another
+        update, an uninstall) is ``provider_changed`` (409) and nothing is written."""
+        name = row.name  # the rollback of a lost race expires the row, which may be gone
+        moved = self.session.exec(
+            sql_update(InstalledProvider)
+            .where(
+                InstalledProvider.id == row.id,
+                InstalledProvider.digest == row.digest,
+                InstalledProvider.permissions == row.permissions,
+                InstalledProvider.roles == row.roles,
+            )
+            .values(
+                image=entry.image, digest=entry.digest, provider_api_version=entry.provider_api_version, label=entry.label,
+                roles=json.dumps(list(entry.roles)),
+                permissions=json.dumps(permissions_to_dict(entry.permissions), sort_keys=True),
+                approved_at=_now(), approved_by=approved_by, approved_automatically=automatic, previous_digest=row.digest,
+            )
+        )
+        if moved.rowcount != 1:
+            self.session.rollback()
+            raise SourceError("provider_changed", f"'{name}' changed meanwhile: look at it again", 409)
         provider_order.sync_default(self.session)  # an update may add the role that makes it a metadata provider
         self.session.commit()
         self.session.refresh(row)
-        self._providers_changed()
-        return row
+
+    def apply_compatible_updates(self, notify: Callable[[dict], None]) -> dict:
+        """The automatic update (ADR-0007 §5.1): every installed provider whose catalog offers a digest that is
+        compatible and asks for exactly what was approved is moved to it, recorded as approved automatically, and
+        ``notify`` gets an event for each one (the admins are told). Any other update is left to the admin. The
+        gateway is told once, after the last update.
+
+        The result is the routine's, digests in their short form: ``updated`` (name, label, from, to), ``waiting``
+        (name, digest, reason: why the admin has to look), ``not_checked`` (name, reason: a disabled source, a
+        provider its catalog no longer lists, a provider changed meanwhile), ``failed`` (name, error_code: its
+        catalog could not be read), with the counts the page words (``applied``, ``waiting_for_admin``, and
+        ``current``: the providers already at what their catalog offers). A catalog that could not be read makes the
+        run an ``error``: nothing is known of those providers."""
+        rows = list(self.session.exec(select(InstalledProvider).order_by(InstalledProvider.name)).all())
+        sources = {source.id: source for source in self.list_sources()}
+        catalogs: dict[str, Catalog | SourceError] = {}
+        updated: list[dict] = []
+        waiting: list[dict] = []
+        not_checked: list[dict] = []
+        failed: list[dict] = []
+        current = 0
+        for row in rows:
+            source = sources[row.source_id]
+            if not source.enabled:
+                not_checked.append({"name": row.name, "reason": "source_disabled"})
+                continue
+            if source.id not in catalogs:
+                try:
+                    catalogs[source.id] = self.fetch_catalog(source)
+                except SourceError as exc:
+                    catalogs[source.id] = exc
+            catalog = catalogs[source.id]
+            if isinstance(catalog, SourceError):
+                failed.append({"name": row.name, "error_code": catalog.code})
+                continue
+            entry = catalog.get(row.name)
+            if entry is None:
+                not_checked.append({"name": row.name, "reason": "provider_not_in_catalog"})
+                continue
+            offer = self._offer(row, entry)
+            if offer is None:
+                current += 1
+                continue
+            wait = automatic_update_wait(offer.entry, offer.diff)
+            if wait is not None:
+                waiting.append({"name": row.name, "digest": short_digest(entry.digest), "reason": wait})
+                continue
+            name, previous = row.name, row.digest  # a lost race rolls back, and the row may be gone with it
+            try:
+                self._apply_update(row, entry, approved_by=None, automatic=True)
+            except SourceError as exc:
+                not_checked.append({"name": name, "reason": exc.code})
+                continue
+            updated.append({"name": name, "label": entry.label, "from": short_digest(previous), "to": short_digest(entry.digest)})
+        if updated:
+            self._providers_changed()
+            for applied in updated:
+                try:
+                    notify({"type": PROVIDER_UPDATE_EVENT, "provider": applied})
+                except Exception as exc:  # noqa: BLE001 — the update is made: the notice is best effort
+                    logger.warning("Could not announce the automatic update of %s: %s", applied["name"], exc)
+        result: dict[str, Any] = {
+            "status": "error" if failed else "ok",
+            "applied": len(updated), "waiting_for_admin": len(waiting), "current": current,
+            "updated": updated, "waiting": waiting, "not_checked": not_checked, "failed": failed,
+        }
+        if failed:
+            result["error_code"] = failed[0]["error_code"]
+        return result
 
     def uninstall(self, name: str) -> None:
         row = self.get_installed(name)

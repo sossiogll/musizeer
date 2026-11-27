@@ -432,7 +432,16 @@ export interface ProgressEvent {
 }
 
 /** Any event of the progress stream. */
-export type StreamEvent = ProgressEvent | LibraryJobEvent | DownloadRequestEvent;
+/**
+ * To the admins: a provider was updated by the automatic update (a compatible digest asking for exactly what was
+ * approved). Digests in their short form.
+ */
+export interface ProviderUpdateEvent {
+  type: "provider_update";
+  provider: { name: string; label: string; from: string; to: string };
+}
+
+export type StreamEvent = ProgressEvent | LibraryJobEvent | DownloadRequestEvent | ProviderUpdateEvent;
 
 // ------------------------------------------------------------------
 // Provider
@@ -686,8 +695,12 @@ export interface InstalledProvider {
   /** The gateway uses the source's token to pull this image. */
   sends_source_token: boolean;
   approved_at: string;
-  /** The admin who approved it; null when approved from the host's shell. */
+  /** The admin who approved it; null when approved from the host's shell or by the automatic update. */
   approved_by: string | null;
+  /** The current digest was applied by the automatic update, not approved by an admin. */
+  approved_automatically: boolean;
+  /** The digest the last update replaced; null when never updated. */
+  previous_digest: string | null;
   installed_at: string;
   /** What its source's catalog offers over it; null when nothing newer. */
   update?: ProviderUpdateOffer | null;

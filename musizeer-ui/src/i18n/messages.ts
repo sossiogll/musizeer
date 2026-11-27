@@ -420,6 +420,7 @@ export const en = {
       library_duplicates_scan: "Library duplicates scan",
       sweep_workspaces: "Clean up workspaces",
       check_for_updates: "Check for updates",
+      auto_update_providers: "Update providers automatically",
       reconcile_library_files: "Reconcile library files",
       import_existing_library: "Import the existing library",
       retry_transient_failures: "Retry temporary failures",
@@ -441,6 +442,8 @@ export const en = {
       sweep_workspaces: "Removes temporary file workspaces left behind by an interrupted download or stream.",
       check_for_updates:
         "Reads the releases of Musizeer on GitHub once a day and tells Administration when a newer version exists and what updating to it implies. It never updates anything: Musizeer is updated by hand.",
+      auto_update_providers:
+        "Applies by itself the updates the catalogs offer for the installed providers, when they are compatible with this Musizeer and ask for exactly the permissions already approved. Any other update (new or fewer permissions, another contract) waits for an administrator in Providers. Turned off, every update waits.",
       reconcile_library_files:
         "Checks the library against the files the storage really holds: a moved file is found again, a vanished one no longer counts as in the library. Deletes nothing.",
       import_existing_library:
@@ -516,6 +519,7 @@ export const en = {
       library_duplicates_scan: "{{groups_created}} new and {{groups_updated}} updated duplicate groups among {{candidates}} tracks",
       sweep_workspaces: "Removed {{removed}} leftover workspaces",
       check_for_updates: "Read the releases of {{repository}}",
+      auto_update_providers: "{{applied}} providers updated, {{waiting_for_admin}} updates wait for an administrator, {{current}} already up to date",
       reconcile_library_files: "{{relocated}} files found again and {{missing_new}} newly missing among {{entries}} library files",
       import_existing_library: "{{indexed}} audio files added to the library",
       retry_transient_failures: "Queued again {{queued}} of {{candidates}} failed downloads",
@@ -689,6 +693,8 @@ export const en = {
     installedFailed: "The installed providers could not be loaded",
     from: "From {{source}}",
     approvedOn: "Approved {{date}}",
+    updatedAutomaticallyOn: "Updated automatically {{date}}",
+    autoUpdatedToast: "{{name}} was updated automatically",
     updateAvailable: "Update available",
     reviewUpdate: "Review the update of {{name}}",
     updateCheckFailed: "Could not look for an update: {{reason}}",
@@ -1000,6 +1006,7 @@ export const en = {
     already_current: "That provider is already at the version its catalog offers.",
     not_installed: "That provider is not installed.",
     catalog_changed: "The catalog changed while you were looking at it. Look at the new version before approving.",
+    provider_changed: "That provider changed while you were looking at it (another update, or the automatic one). Look at it again.",
     incompatible_provider: "That provider was built for another version of the provider API and cannot be installed here.",
     catalog_invalid: "That is not a usable catalog (it must be a version 2 catalog).",
     catalog_unreachable: "The catalog's server could not be reached.",
@@ -2023,6 +2030,7 @@ export const it: Translations<typeof en> = {
       library_duplicates_scan: "Scansione duplicati libreria",
       sweep_workspaces: "Pulizia cartelle di lavoro",
       check_for_updates: "Controllo aggiornamenti",
+      auto_update_providers: "Aggiorna i provider automaticamente",
       reconcile_library_files: "Riconcilia i file della libreria",
       import_existing_library: "Importa la libreria esistente",
       retry_transient_failures: "Riprova i fallimenti temporanei",
@@ -2043,6 +2051,8 @@ export const it: Translations<typeof en> = {
       sweep_workspaces: "Rimuove le cartelle temporanee rimaste da un download o uno streaming interrotto.",
       check_for_updates:
         "Legge una volta al giorno le release di Musizeer su GitHub e avvisa in Amministrazione quando esiste una versione più nuova e cosa comporta aggiornare. Non aggiorna mai nulla: Musizeer si aggiorna a mano.",
+      auto_update_providers:
+        "Applica da solo gli aggiornamenti che i cataloghi offrono per i provider installati, quando sono compatibili con questo Musizeer e chiedono esattamente i permessi già approvati. Ogni altro aggiornamento (permessi nuovi o in meno, un altro contratto) aspetta un amministratore in Provider. Spento, ogni aggiornamento aspetta.",
       reconcile_library_files:
         "Confronta la libreria con i file che lo storage contiene davvero: un file spostato si ritrova, uno sparito non conta più come in libreria. Non cancella nulla.",
       import_existing_library:
@@ -2118,6 +2128,7 @@ export const it: Translations<typeof en> = {
       library_duplicates_scan: "{{groups_created}} gruppi di duplicati nuovi e {{groups_updated}} aggiornati su {{candidates}} brani",
       sweep_workspaces: "Rimosse {{removed}} cartelle di lavoro rimaste",
       check_for_updates: "Lette le release di {{repository}}",
+      auto_update_providers: "{{applied}} provider aggiornati, {{waiting_for_admin}} aggiornamenti aspettano un amministratore, {{current}} già aggiornati",
       reconcile_library_files: "{{relocated}} file ritrovati e {{missing_new}} nuovi mancanti su {{entries}} file della libreria",
       import_existing_library: "{{indexed}} file audio aggiunti alla libreria",
       retry_transient_failures: "Rimessi in coda {{queued}} download falliti su {{candidates}}",
@@ -2291,6 +2302,8 @@ export const it: Translations<typeof en> = {
     installedFailed: "Impossibile caricare i provider installati",
     from: "Da {{source}}",
     approvedOn: "Approvato {{date}}",
+    updatedAutomaticallyOn: "Aggiornato automaticamente {{date}}",
+    autoUpdatedToast: "{{name}} è stato aggiornato automaticamente",
     updateAvailable: "Aggiornamento disponibile",
     reviewUpdate: "Esamina l'aggiornamento di {{name}}",
     updateCheckFailed: "Impossibile cercare un aggiornamento: {{reason}}",
@@ -2600,6 +2613,7 @@ export const it: Translations<typeof en> = {
     already_current: "Quel provider è già alla versione che il suo catalogo offre.",
     not_installed: "Quel provider non è installato.",
     catalog_changed: "Il catalogo è cambiato mentre lo guardavi. Guarda la nuova versione prima di approvare.",
+    provider_changed: "Quel provider è cambiato mentre lo guardavi (un altro aggiornamento, o quello automatico). Guardalo di nuovo.",
     incompatible_provider: "Quel provider è stato costruito per un'altra versione dell'API dei provider e non si può installare qui.",
     catalog_invalid: "Questo non è un catalogo utilizzabile (deve essere un catalogo versione 2).",
     catalog_unreachable: "Il server del catalogo non è raggiungibile.",

@@ -682,3 +682,203 @@ def test_an_update_that_adds_the_metadata_role_appends_the_provider(world):
     world.manager().update("beta", DIGEST_C)
 
     assert _stored_order(world) == ["alpha", "beta"]
+
+
+# ---- the automatic update (ADR-0007 §5.1) ----------------------------------------------------
+
+SECOND_URL = "https://other-catalog.example/catalog.json"
+
+
+def _auto(world, session: Session | None = None) -> tuple[dict, list[dict]]:
+    notices: list[dict] = []
+    return world.manager(session).apply_compatible_updates(notify=notices.append), notices
+
+
+def test_a_compatible_update_asking_for_what_was_approved_is_applied_by_itself(world):
+    source = added(world)
+    world.manager().install(source.id, "lrclib", DIGEST_A, approved_by="admin-1")
+    world.server.serve(URL, _catalog_with_lrclib(DIGEST_B, label="Lyrics, new"))
+    pushes, announcements = len(world.gateway.pushes()), len(world.announcements)
+
+    result, notices = _auto(world)
+
+    row = world.session.exec(select(InstalledProvider)).one()
+    world.session.refresh(row)
+    assert (row.digest, row.label, row.previous_digest) == (DIGEST_B, "Lyrics, new", DIGEST_A)
+    assert row.approved_automatically is True and row.approved_by is None, "approved by the automatic update, not by an admin"
+    assert result["status"] == "ok"
+    assert (result["applied"], result["waiting_for_admin"], result["current"]) == (1, 0, 0)
+    assert result["updated"] == [{"name": "lrclib", "label": "Lyrics, new", "from": "a" * 12, "to": "b" * 12}]
+    assert notices == [{"type": "provider_update", "provider": result["updated"][0]}], "the admins are told"
+    assert len(world.gateway.pushes()) == pushes + 1 and world.gateway.pushes()[-1]["providers"][0]["digest"] == DIGEST_B
+    assert len(world.announcements) == announcements + 1
+    view = world.manager().list_installed()[0]
+    assert (view["approved_automatically"], view["previous_digest"], view["update"]) == (True, DIGEST_A, None)
+
+
+@pytest.mark.parametrize("permissions", [
+    {**LRCLIB_PERMISSIONS, "egress": ["lrclib.net:443", "more.example:443"]},
+    {**LRCLIB_PERMISSIONS, "egress": []},
+    {**LRCLIB_PERMISSIONS, "limits": {"memory_mb": 128}},
+], ids=["more", "less", "another-limit"])
+def test_an_update_with_any_difference_in_permissions_waits_for_the_admin(world, permissions):
+    source = added(world)
+    world.manager().install(source.id, "lrclib", DIGEST_A)
+    world.server.serve(URL, _catalog_with_lrclib(DIGEST_B, permissions=permissions))
+    pushes = len(world.gateway.pushes())
+
+    result, notices = _auto(world)
+
+    assert world.session.exec(select(InstalledProvider)).one().digest == DIGEST_A
+    assert result["waiting"] == [{"name": "lrclib", "digest": "b" * 12, "reason": "permissions_changed"}]
+    assert (result["status"], result["applied"], result["waiting_for_admin"]) == ("ok", 0, 1)
+    assert notices == [] and len(world.gateway.pushes()) == pushes
+    assert world.manager().list_installed()[0]["update"]["digest"] == DIGEST_B, "still offered to the admin"
+
+
+def test_an_update_with_another_role_waits_for_the_admin(world):
+    source = added(world)
+    world.manager().install(source.id, "lrclib", DIGEST_A)
+    world.server.serve(URL, _catalog_with_lrclib(DIGEST_B, roles=["lyrics", "metadata"]))
+
+    result, _ = _auto(world)
+
+    assert result["waiting"][0]["reason"] == "permissions_changed"
+    assert world.session.exec(select(InstalledProvider)).one().digest == DIGEST_A
+
+
+def test_an_update_to_an_incompatible_contract_waits_for_the_admin(world):
+    source = added(world)
+    world.manager().install(source.id, "lrclib", DIGEST_A)
+    world.server.serve(URL, _catalog_with_lrclib(DIGEST_B, provider_api_version=99))
+
+    result, notices = _auto(world)
+
+    assert result["waiting"] == [{"name": "lrclib", "digest": "b" * 12, "reason": "incompatible"}]
+    assert notices == [] and world.session.exec(select(InstalledProvider)).one().digest == DIGEST_A
+
+
+def test_nothing_new_changes_nothing_and_tells_nobody(world):
+    source = added(world)
+    world.manager().install(source.id, "lrclib", DIGEST_A)
+    pushes, announcements = len(world.gateway.pushes()), len(world.announcements)
+
+    result, notices = _auto(world)
+
+    assert (result["status"], result["applied"], result["current"]) == ("ok", 0, 1)
+    assert notices == [] and len(world.gateway.pushes()) == pushes and len(world.announcements) == announcements
+    assert world.session.exec(select(InstalledProvider)).one().approved_automatically is False
+
+
+def test_a_catalog_that_cannot_be_read_fails_the_run_and_the_others_are_still_updated(world):
+    broken = added(world)
+    world.manager().install(broken.id, "lrclib", DIGEST_A)
+    working = added(world, SECOND_URL, catalog(entry("words")))
+    world.manager().install(working.id, "words", DIGEST_A)
+    world.server.serve(URL, b"", status=500)
+    world.server.serve(SECOND_URL, catalog(entry("words", DIGEST_B)))
+
+    result, notices = _auto(world)
+
+    assert (result["status"], result["error_code"]) == ("error", "catalog_unreachable"), "never ok with a hidden failure"
+    assert result["failed"] == [{"name": "lrclib", "error_code": "catalog_unreachable"}]
+    assert [u["name"] for u in result["updated"]] == ["words"] and len(notices) == 1
+
+
+def test_a_disabled_source_or_a_provider_its_catalog_dropped_is_reported_not_checked(world):
+    disabled = added(world)
+    world.manager().install(disabled.id, "lrclib", DIGEST_A)
+    world.manager().toggle_source(disabled.id, False)
+    dropped = added(world, SECOND_URL, catalog(entry("words")))
+    world.manager().install(dropped.id, "words", DIGEST_A)
+    world.server.serve(SECOND_URL, catalog())
+    count = len(world.server.requests)
+
+    result, _ = _auto(world)
+
+    assert result["status"] == "ok"
+    assert result["not_checked"] == [
+        {"name": "lrclib", "reason": "source_disabled"}, {"name": "words", "reason": "provider_not_in_catalog"},
+    ]
+    assert len(world.server.requests) == count + 1, "a disabled source's catalog is not read"
+
+
+def test_an_update_approved_meanwhile_is_not_overwritten_by_the_automatic_one(world):
+    """The routine judges the row, the admin approves another update before it writes: its write finds the row
+    changed and leaves the admin's approval in place."""
+    source = added(world)
+    world.manager().install(source.id, "lrclib", DIGEST_A)
+    world.server.serve(URL, _catalog_with_lrclib(DIGEST_C))  # compatible, the same permissions: the routine takes it
+    wider = {**LRCLIB_PERMISSIONS, "egress": ["lrclib.net:443", "more.example:443"]}
+    routine = world.manager(Session(world.engine))
+    judge = routine._offer
+
+    def judged_then_the_admin_approves(row, entry):
+        offer = judge(row, entry)
+        world.server.serve(URL, _catalog_with_lrclib(DIGEST_B, permissions=wider))
+        with Session(world.engine) as admin_session:
+            world.manager(admin_session).update("lrclib", DIGEST_B, approved_by="admin-1")
+        return offer
+
+    routine._offer = judged_then_the_admin_approves
+    try:
+        result = routine.apply_compatible_updates(notify=lambda _event: None)
+    finally:
+        routine.session.close()
+
+    row = world.session.exec(select(InstalledProvider)).one()
+    world.session.refresh(row)
+    assert (row.digest, row.approved_by, row.approved_automatically) == (DIGEST_B, "admin-1", False)
+    assert "more.example:443" in json.loads(row.permissions)["egress"]
+    assert result["updated"] == [] and result["not_checked"] == [{"name": "lrclib", "reason": "provider_changed"}]
+
+
+def test_a_provider_uninstalled_meanwhile_is_reported_and_the_next_one_still_updated(world):
+    source = added(world, document=catalog(entry("one"), entry("two")))
+    world.manager().install(source.id, "one", DIGEST_A)
+    world.manager().install(source.id, "two", DIGEST_A)
+    world.server.serve(URL, catalog(entry("one", DIGEST_B), entry("two", DIGEST_B)))
+    routine = world.manager(Session(world.engine))
+    judge = routine._offer
+
+    def judged_then_the_admin_uninstalls(row, entry):
+        offer = judge(row, entry)
+        if row.name == "one":
+            with Session(world.engine) as admin_session:
+                world.manager(admin_session).uninstall("one")
+        return offer
+
+    routine._offer = judged_then_the_admin_uninstalls
+    try:
+        result = routine.apply_compatible_updates(notify=lambda _event: None)
+    finally:
+        routine.session.close()
+
+    assert result["not_checked"] == [{"name": "one", "reason": "provider_changed"}]
+    assert [u["name"] for u in result["updated"]] == ["two"]
+    assert [row.name for row in world.session.exec(select(InstalledProvider)).all()] == ["two"]
+
+
+def test_an_admin_update_after_an_automatic_one_is_recorded_as_the_admins(world):
+    source = added(world)
+    world.manager().install(source.id, "lrclib", DIGEST_A)
+    world.server.serve(URL, _catalog_with_lrclib(DIGEST_B))
+    _auto(world)
+    world.server.serve(URL, _catalog_with_lrclib(DIGEST_C, permissions={**LRCLIB_PERMISSIONS, "egress": []}))
+
+    row = world.manager().update("lrclib", DIGEST_C, approved_by="admin-2")
+
+    assert (row.digest, row.previous_digest, row.approved_by, row.approved_automatically) == (DIGEST_C, DIGEST_B, "admin-2", False)
+
+
+def test_a_failed_notice_does_not_undo_an_applied_update(world):
+    source = added(world)
+    world.manager().install(source.id, "lrclib", DIGEST_A)
+    world.server.serve(URL, _catalog_with_lrclib(DIGEST_B))
+
+    def broken(_event):
+        raise ConnectionError("redis is down")
+
+    result = world.manager().apply_compatible_updates(notify=broken)
+
+    assert result["applied"] == 1 and world.session.exec(select(InstalledProvider)).one().digest == DIGEST_B

@@ -68,7 +68,10 @@ export function InstalledList({ installed, states, hostRejected, gatewayRejected
                       {provider.image}@{shortDigest(provider.digest)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {t("sources.from", { source: provider.source_name ?? "?" })} · {t("sources.approvedOn", { date: absoluteTime(provider.approved_at, locale) })}
+                      {t("sources.from", { source: provider.source_name ?? "?" })} ·{" "}
+                      {t(provider.approved_automatically ? "sources.updatedAutomaticallyOn" : "sources.approvedOn", {
+                        date: absoluteTime(provider.approved_at, locale),
+                      })}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">

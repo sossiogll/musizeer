@@ -11,6 +11,7 @@ import { FoldersBanner } from "./FoldersBanner";
 import { GlobalSearch } from "./GlobalSearch";
 import { LibraryJobIndicator } from "./LibraryJobIndicator";
 import { LibraryJobsWatcher } from "./LibraryJobsWatcher";
+import { ProviderUpdatesWatcher } from "./ProviderUpdatesWatcher";
 import { RequestsWatcher } from "./RequestsWatcher";
 import { Logo } from "./Logo";
 import { NavList } from "./NavList";
@@ -103,6 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Player />
       <LibraryJobsWatcher />
       <RequestsWatcher />
+      <ProviderUpdatesWatcher />
 
       <nav
         aria-label={t("nav.main")}
