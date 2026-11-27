@@ -65,6 +65,8 @@ def _files():
     for directory, names, files in os.walk(ROOT):
         names[:] = sorted(n for n in names if n not in SKIPPED_DIRECTORIES and not n.endswith(SKIPPED_SUFFIXES) and not (n == "data" and directory == str(ROOT)))
         for name in sorted(files):
+            if name == ".git":  # in a git worktree `.git` is a file that names where its repository is
+                continue
             path = Path(directory) / name
             yield path, path.relative_to(ROOT).as_posix()
 
