@@ -4,6 +4,10 @@ import { I18nProvider, useI18n } from "./index";
 import { en, it as itDict, messages } from "./messages";
 
 /** Appiattisce un oggetto annidato in un set di dot-path foglia. */
+/** The value at a dotted path of a dictionary. */
+const at = (dict: object, path: string): unknown =>
+  path.split(".").reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], dict);
+
 function leafPaths(obj: object, prefix = ""): string[] {
   return Object.entries(obj).flatMap(([k, v]) => {
     const key = prefix ? `${prefix}.${k}` : k;
@@ -27,7 +31,7 @@ describe("dizionari", () => {
 
   it("nessuna traduzione IT è vuota", () => {
     for (const path of leafPaths(itDict)) {
-      const value = path.split(".").reduce<any>((n, p) => n[p], itDict);
+      const value = at(itDict, path);
       expect(value, path).toBeTruthy();
     }
   });
@@ -82,10 +86,10 @@ describe("useI18n", () => {
 
   it("ogni messaggio plurale ha le stesse forme in tutte le lingue", () => {
     const plurals = (dict: object) =>
-      leafPaths(dict).filter((path) => typeof path.split(".").reduce<any>((n, p) => n[p], dict) === "object");
+      leafPaths(dict).filter((path) => typeof at(dict, path) === "object");
     expect(new Set(plurals(itDict))).toEqual(new Set(plurals(en)));
     for (const path of plurals(itDict)) {
-      const value = path.split(".").reduce<any>((n, p) => n[p], itDict);
+      const value = at(itDict, path) as Record<string, unknown>;
       expect(value.one && value.other, path).toBeTruthy();
     }
   });

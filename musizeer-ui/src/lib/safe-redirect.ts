@@ -7,6 +7,8 @@ export function safeRedirect(target: unknown): string {
   if (typeof target !== "string" || !target.startsWith("/") || target.startsWith("//") || target.startsWith("/\\")) {
     return "/";
   }
+  // A control character (a newline, a NUL) in a path is never a page of the app.
+  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f]/.test(target)) return "/";
   if (isAuthPage(target)) return "/";
   return target;

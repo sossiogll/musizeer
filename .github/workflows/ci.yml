@@ -142,6 +142,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # The root tsconfig.json analyses nothing (project references): check the app's own.
       - run: npx tsc -p tsconfig.app.json --noEmit
+      - run: pnpm lint
       - run: pnpm test
 
   frontend-image:
