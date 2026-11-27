@@ -1,7 +1,7 @@
 """
-Fase 4a: ``db/settings_store.py`` (``SettingsRepository``) — l'unico punto di
-accesso alla tabella ``settings`` che sostituisce le tre fonti sparse di
-Fase 3b. Nessun nome di provider concreto qui: sono chiavi generiche, il
+``db/settings_store.py`` (``SettingsRepository``) — l'unico punto di
+accesso alla tabella ``settings`` che sostituisce le tre fonti sparse precedenti.
+Nessun nome di provider concreto qui: sono chiavi generiche, il
 repository non sa nulla di "provider" (il namespacing è un affare di
 ``core/settings_resolver.py``, esercitato altrove).
 """

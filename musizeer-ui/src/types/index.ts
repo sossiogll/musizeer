@@ -539,7 +539,7 @@ export interface ProviderInfo {
   setup_command?: string;
   setup_instructions?: string;
   config: Record<string, unknown>;
-  // Fase 5c, Task 4 (fix): altre categorie in cui QUESTO STESSO oggetto
+  // Altre categorie in cui QUESTO STESSO oggetto
   // provider (identità lato backend, mai il `name`) è registrato — vuoto per
   // un provider a ruolo singolo. Il `name` da solo NON basta a dedurre
   // l'identità: due CLASSI DISTINTE nel registry possono condividere un nome
@@ -557,10 +557,9 @@ export interface ProvidersResponse {
   lyrics: ProviderInfo[];
   storage: ProviderInfo[];
   sync: ProviderInfo[];
-  // Fase 5a fix 2: GET /providers ora copre ogni categoria che il registry
-  // conosce (derivata da core/settings_resolver.py::PROVIDER_CATEGORY_GETTERS),
-  // "identification" compresa — prima assente da questa risposta pur avendo
-  // impostazioni proprie nello schema unificato.
+  // GET /providers copre ogni categoria che il registry conosce (derivata da
+  // core/settings_resolver.py::PROVIDER_CATEGORY_GETTERS), "identification"
+  // compresa, che ha impostazioni proprie nello schema unificato.
   identification: ProviderInfo[];
 }
 

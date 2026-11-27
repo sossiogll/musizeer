@@ -3,7 +3,7 @@ import axios, { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 import { authStore } from "./auth-store";
 import { refreshAccessToken } from "./api-client";
 
-// Task 1 (Phase 5b, second half): signing out did not sign you out. A
+// Signing out once did not sign you out. A
 // refresh already in flight when the user signed out captured the old
 // refresh token before authStore.clear() ran, and when it resolved it wrote
 // a fresh access+refresh token pair straight back into the store —

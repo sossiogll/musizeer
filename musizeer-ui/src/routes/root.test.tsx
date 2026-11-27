@@ -20,7 +20,7 @@ import type { ConfigSchemaResponse, SettingDef } from "@/lib/api-client";
 import type { ProvidersResponse, SearchType, User } from "@/types";
 
 // Interface-level coverage for the three auth states the app actually runs
-// in (Phase 5b, second half, Task 3): auth disabled, signed out with auth
+// in: auth disabled, signed out with auth
 // enabled, and signed in. Renders the real router + RootLayout (Header,
 // MobileNav, RequireAuth, ConfigPage) against a mocked backend, rather than
 // asserting on AuthContext/authStore internals directly, so these tests keep

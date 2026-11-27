@@ -285,11 +285,10 @@ def test_every_provider_declared_setting_lands_in_providers_area_under_its_own_g
 
 
 def test_every_list_and_provider_ref_setting_declares_a_provider_category():
-    # Fase 5a fix 1: `provider_category` esisteva già come campo di SettingDef
-    # ma era dichiarato SOLO dai `provider_ref` — i due `list` del CATALOG
-    # (metadata_provider_priority, download_provider_order) non lo
-    # dichiaravano, costringendo il frontend a tenere una propria mappa
-    # chiave->categoria (esattamente la conoscenza che questo campo esiste
+    # `provider_category` è un campo di SettingDef dichiarato sia dai
+    # `provider_ref` sia dai due `list` del CATALOG (metadata_provider_priority,
+    # download_provider_order): se un `list` non lo dichiarasse, il frontend
+    # dovrebbe tenere una propria mappa chiave->categoria (esattamente la conoscenza che questo campo esiste
     # per evitare di dover duplicare). Verificato sull'intero schema
     # unificato (CATALOG + provider), cosi' una futura impostazione di
     # provider di tipo "list"/"provider_ref" senza categoria fa fallire

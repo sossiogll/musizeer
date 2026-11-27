@@ -32,7 +32,7 @@ import type { ProviderInfo, ProvidersResponse } from "@/types";
 import { SettingsArea, SettingRow } from "../config/settings/SettingsArea";
 import { activeProviderRefBadges, providerSettingsSchema } from "../config/settings/settingsHelpers";
 
-// Ordine di VISUALIZZAZIONE delle categorie (Fase 5c, Task 4): lo stesso
+// Ordine di VISUALIZZAZIONE delle categorie: lo stesso
 // ordine in cui le sezioni compaiono più sotto — serve SOLO a scegliere, fra
 // le categorie in cui un provider genuinamente condiviso compare (vedi
 // `also_registered_in`), quale mostra l'editor pieno. Le chiavi sono i ruoli
@@ -80,7 +80,7 @@ export function homeCategoryFor(
  * provider's declared model has one. A user's own account is theirs to connect
  * in Settings › Linked accounts, never here.
  *
- * Fase 5a: la selezione del provider attivo (storage/sync) e l'ordine dei
+ * La selezione del provider attivo (storage/sync) e l'ordine dei
  * download provider sono dichiarati nel CATALOG come `provider_ref`/`list`
  * (gruppo "provider_selection", area "providers") e renderizzati dal renderer
  * generico (`<SettingsArea area="providers" />`). La card di ciascun provider

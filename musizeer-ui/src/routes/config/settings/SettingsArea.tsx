@@ -44,7 +44,7 @@ interface SettingsAreaProps {
 }
 
 /**
- * Fase 5a: renderizza UN'area della tassonomia impostazioni — i suoi gruppi
+ * Renderizza UN'area della tassonomia impostazioni — i suoi gruppi
  * come sezioni nell'ordine dichiarato, ciascuno con label/descrizione da
  * `taxonomy.groups` (o dalla label del provider stesso per un gruppo che è
  * un provider), e ogni impostazione col controllo scelto dal suo `type`.
@@ -96,10 +96,10 @@ export function SettingsArea({ area }: SettingsAreaProps) {
   const setValue = (key: string, v: unknown) => setEdits((e) => ({ ...e, [key]: v }));
   const dirtyKeys = Object.keys(edits);
 
-  // Fase 5b: le impostazioni di provider (chiave "provider.<nome>.<key>")
+  // Le impostazioni di provider (chiave "provider.<nome>.<key>")
   // hanno già la loro card in the admin providers page — un editor migliore, costruito
   // apposta per il flusso connetti-e-configura. Renderizzarle ANCHE qui
-  // duplicava l'editor e disallineava le due copie (Fase 5b, difetto 1).
+  // duplicava l'editor e disallineava le due copie.
   // Riconosciute dalla FORMA della chiave, mai da un elenco di provider.
   const settingsForArea = useMemo(
     () =>
@@ -225,7 +225,7 @@ export function SettingRow({
   onChange: (v: unknown) => void;
   providersData: ProvidersResponse | undefined;
 }) {
-  // Fase 5c, Task 1: mostrato per QUALUNQUE tipo — il verdetto del server
+  // Mostrato per QUALUNQUE tipo — il verdetto del server
   // (`available`/`unavailable_reason`) non distingue per tipo, quindi nemmeno
   // la sua presentazione lo fa. Il testo è già leggibile così com'è (costruito
   // dal backend da categoria/label dichiarate, mai un nome di provider).
@@ -234,7 +234,7 @@ export function SettingRow({
   const label = settingLabel(def, tx);
   const description = settingDescription(def, tx);
 
-  // Fase 5c, Task 2: un `provider_ref` non passa mai dalla barra di
+  // Un `provider_ref` non passa mai dalla barra di
   // salvataggio in batch — attivarlo è un'azione esplicita e testata a sé
   // (vedi ProviderRefControl). `value` qui resta il valore EFFETTIVO dal
   // server: questa chiave non entra mai nello stato `edits` di SettingsArea.
@@ -254,12 +254,12 @@ export function SettingRow({
   }
 
   if (def.type === "list") {
-    // Fase 5a fix 1: `provider_category` è ora dichiarato dal backend anche
-    // per "list" (prima solo per "provider_ref"), quindi letto qui allo
+    // `provider_category` è dichiarato dal backend anche per "list" e per
+    // "provider_ref", quindi letto qui allo
     // stesso identico modo — nessuna mappa chiave->categoria lato frontend.
     const providers = providersForCategory(providersData, def.provider_category);
     // Riordinare un solo provider (o nessuno) non ha senso: stessa soglia
-    // che GeneralTab.tsx applicava prima di Fase 5a.
+    // che applicava la vecchia GeneralTab.tsx.
     if (providers.length <= 1) return null;
     const order = mergeProviderOrder(value as string[] | undefined, providers);
     return (

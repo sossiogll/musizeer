@@ -25,6 +25,14 @@ updates:
       # redis-py 6.5 and later are not supported by kombu (Celery's Redis transport): wait until it is.
       - dependency-name: redis
         update-types: [version-update:semver-major]
+      # kombu 5.7.0 moved `packaging` into its `redis` extra while kombu.transport.redis still imports it: the
+      # workers of the production image could not start (2026-11-04, pinned to 5.6.2). Celery 5.7 requires
+      # kombu 5.7, so it waits too. Moving them is a change of its own: kombu[redis] in requirements.txt and
+      # the "app image (production)" check green, never a weekly update.
+      - dependency-name: kombu
+        versions: [">=5.7.0"]
+      - dependency-name: celery
+        versions: [">=5.7.0"]
 
   # The web app (pnpm).
   - package-ecosystem: npm
@@ -40,6 +48,26 @@ updates:
         update-types: [minor, patch]
     ignore:
       # The major of @types/node follows the Node the project runs (24).
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
+
+  # The end-to-end suite (pnpm).
+  - package-ecosystem: npm
+    directory: /e2e
+    target-branch: dev
+    schedule:
+      interval: weekly
+    labels: [fix]
+    commit-message:
+      prefix: deps
+    groups:
+      e2e:
+        update-types: [minor, patch]
+    ignore:
+      # @playwright/test must be the version of the image the suite runs in (mcr.microsoft.com/playwright:vX.Y.Z-noble
+      # in e2e/run.sh and e2e/README.md), which Dependabot does not update: the two move together, by hand.
+      - dependency-name: "@playwright/test"
+      # The major of @types/node follows the Node of the Playwright image (22).
       - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
 

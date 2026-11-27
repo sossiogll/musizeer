@@ -1,4 +1,4 @@
-"""introduce the unified `settings` table (Phase 4a: one settings store)
+"""introduce the unified `settings` table (one settings store)
 
 Revision ID: 0010_settings_store
 Revises: 0009_pending_likes
@@ -41,7 +41,7 @@ identical `{}` result.
 ``ConfigManager`` — this migration only stops treating it as the source of
 truth, it does not delete it. The two ``users`` columns are also left in
 place: dropping them, and moving every production reader/writer onto
-``SettingsRepository``, is Phase 4b's business (migration ``0011``).
+``SettingsRepository``, is the business of migration ``0011``.
 
 Hazard #1 (verified against the live DB, not assumed): two DIFFERENT
 providers — one metadata, one download — are registered under the SAME
@@ -233,7 +233,7 @@ def upgrade() -> None:
             if priority is not None:
                 _insert("metadata_provider_priority", "user", user_id, json.dumps(priority))
         # auto_like_on_sync e' dichiarata come SettingDef (scope='user') dalla
-        # Fase 4b (migrazione 0011), che sposta anche i lettori/scrittori di
+        # migrazione 0011, che sposta anche i lettori/scrittori di
         # produzione su SettingsRepository e infine droppa questa colonna —
         # copiata qui per completezza dei dati fin da questa migrazione.
         _insert("auto_like_on_sync", "user", user_id, json.dumps(bool(auto_like_on_sync)))

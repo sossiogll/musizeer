@@ -16,12 +16,12 @@ export function usePlayTracks() {
   const [busy, setBusy] = useState(false);
 
   const run = useCallback(
-    async (load: () => Promise<Track[]>, use: (queue: Track[]) => void, title: string) => {
+    async (load: () => Promise<Track[]>, consume: (queue: Track[]) => void, title: string) => {
       setBusy(true);
       try {
         const playable = (await load()).filter(isPlayable);
         if (playable.length === 0) toast.info(t("menu.nothingToPlay", { title }));
-        else use(playable);
+        else consume(playable);
       } catch {
         toast.error(t("menu.tracksFailed", { title }));
       } finally {

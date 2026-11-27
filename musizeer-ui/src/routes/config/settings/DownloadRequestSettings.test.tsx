@@ -210,7 +210,8 @@ describe("the download request policy in the generated settings area", () => {
 });
 
 describe("the dictionaries have every key the catalogue points to", () => {
-  const path = (root: unknown, ...keys: string[]) => keys.reduce<any>((node, key) => node?.[key], root);
+  const path = (root: unknown, ...keys: string[]) =>
+    keys.reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], root);
 
   it.each(["en", "it"] as const)("%s: a label and a description for each setting, an option label for each mode, the group", (locale) => {
     const dictionary = messages[locale];

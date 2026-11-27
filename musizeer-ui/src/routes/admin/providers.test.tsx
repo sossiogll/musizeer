@@ -408,7 +408,7 @@ function renderGroup(props: Parameters<typeof ProviderGroup>[0]) {
   );
 }
 
-describe("ProviderGroup (Fase 5c, Task 3/4)", () => {
+describe("ProviderGroup", () => {
   it("badges a provider's card with the declared label of the provider_ref setting currently pointing at it", () => {
     const local = provider({ name: "local", label: "Local disk" });
 

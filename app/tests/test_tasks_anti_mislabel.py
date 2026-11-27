@@ -1,5 +1,5 @@
 """
-Fase 5c (revisione): gate del toggle globale ``identification_enabled``
+Gate del toggle globale ``identification_enabled``
 sull'anti-mislabel post-download in ``app/workers/tasks.py``.
 
 Contesto del deadlock corretto: ``is_available()`` di un provider di

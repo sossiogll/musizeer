@@ -14,11 +14,11 @@ the [architecture overview](../architecture.md).
 | [0005](0005-identity-data-and-reads.md) | Identity data has one home, and reading never writes it | Accepted |
 | [0006](0006-provider-distribution-and-sandbox.md) | Distributing providers as OCI images on GHCR and running them in a sandbox | Implemented (phases 1 to 6) |
 | [0007](0007-versions-compatibility-and-upgrades.md) | Versions, compatibility and upgrades | Accepted, partly implemented (see its implementation plan) |
-| [0008](0008-library-roots-and-staging.md) | Root folders and folder settings: where the work happens and where the music lives | Accepted (2026-10-25); the gateway, the host (data, settings, API, blocking, conversion) and the SDK are implemented; the page, the local provider and the delegate mapping (steps 5 and 6) are not yet |
-| [0009](0009-configuration-surface-and-environment-names.md) | The configuration surface: deployment versus application, and the `MUSIZEER_` environment names | Accepted (2026-10-25), not yet implemented |
-| [0010](0010-rename-to-musizeer.md) | Rename the product from Musizerr to Musizeer, in one breaking release | Accepted (2026-10-25), not yet implemented |
+| [0008](0008-library-roots-and-staging.md) | Root folders and folder settings: where the work happens and where the music lives | Accepted (2026-10-25); implemented in 2.0.0 (gateway, host, SDK, the root folders page and the local provider) except the delegate mapping (steps 5 and 6) |
+| [0009](0009-configuration-surface-and-environment-names.md) | The configuration surface: deployment versus application, and the `MUSIZEER_` environment names | Accepted (2026-10-25), implemented in 2.0.0 |
+| [0010](0010-rename-to-musizeer.md) | Rename the product from Musizerr to Musizeer, in one breaking release | Accepted (2026-10-25), implemented in 2.0.0 (2026-11-04) |
 
-Dependencies worth knowing: 0008, 0009 and 0010 are one piece of work shipped as **one breaking release** with no
+Dependencies worth knowing: 0008, 0009 and 0010 are one piece of work shipped as **one breaking release**, 2.0.0, with no
 compatibility window (SDK 6): 0010 is the release (the rename, the inventory, the order of work, the procedure for the
 owner's server), 0009 gives it the environment names and the boundary between environment and settings, 0008 the root
 folders and the `folder` setting type. 0010 supersedes the staged rename that 0009's first draft contained. 0008 leaves 0002
