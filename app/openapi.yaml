@@ -1919,7 +1919,7 @@ components:
 
     InstalledProvider:
       type: object
-      required: [name, label, image, registry, digest, provider_api_version, roles, permissions, source_id, source_name, sends_source_token, approved_at, approved_by, installed_at]
+      required: [name, label, image, registry, digest, provider_api_version, roles, permissions, source_id, source_name, sends_source_token, approved_at, approved_by, approved_automatically, previous_digest, installed_at]
       properties:
         name:
           type: string
@@ -1951,7 +1951,13 @@ components:
           format: date-time
         approved_by:
           type: [string, "null"]
-          description: The admin who approved it; null when approved from the host's shell
+          description: The admin who approved it; null when approved from the host's shell or by the automatic update
+        approved_automatically:
+          type: boolean
+          description: The current digest was applied by the automatic update (compatible, asking for exactly what was approved before; ADR-0007 §5.1)
+        previous_digest:
+          type: [string, "null"]
+          description: The digest the last update replaced; null when it was never updated since it was installed
         installed_at:
           type: string
           format: date-time
@@ -5452,7 +5458,8 @@ paths:
         admin saw as `update` in the installed list with the difference in permissions. The
         gateway refuses an image whose labels declare anything else. Error codes:
         `not_installed` (404), `provider_not_in_catalog` (404), `source_disabled` (409),
-        `already_current` (409), `catalog_changed` (409), `incompatible_provider` (422), and the
+        `already_current` (409), `catalog_changed` (409), `provider_changed` (409: it was updated or uninstalled
+        meanwhile, by another admin or by the automatic update), `incompatible_provider` (422), and the
         catalog fetch codes (502/422).
       parameters:
         - name: name

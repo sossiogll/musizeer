@@ -82,6 +82,8 @@ export const installed = (overrides: Partial<InstalledProvider> = {}): Installed
   sends_source_token: false,
   approved_at: "2026-10-13T10:00:00+00:00",
   approved_by: "admin-1",
+  approved_automatically: false,
+  previous_digest: null,
   installed_at: "2026-10-13T10:00:00+00:00",
   update: null,
   update_error: null,

@@ -209,6 +209,14 @@ workers, the gateway, the web app) is always updated by hand.
 4. **Releases** (§6): labels and their check, automatic releases with `release.json` (*done*); still to do: SDK
    tags, and the provider base image published once per SDK version, never pushed again under a published tag.
 5. **Updates** (§5.1): the check and its page in Administration, and the automatic updates of providers.
+   *Done* (2026-11-27): the check (`check_for_updates`) and the automatic updates of providers, the routine
+   `auto_update_providers` (`services/sources.py`, `apply_compatible_updates`; [docs/catalog.md](../catalog.md)). Decisions
+   the text above leaves open: the setting is the routine's own switch, like `check_for_updates`, on by default and every
+   6 hours (one read of each catalog per run); "no difference in permissions" is strict, so an update that asks for
+   less, or changes a role, waits too; catalog version 2 has no `min_musizeer`, so compatibility is the contract until
+   catalog format 3 (step 6) brings it; the record is on the installed provider (`approved_automatically`,
+   `previous_digest`, `approved_at`; migration `0047`, expand), and the run's result lists what moved; the write is a
+   conditional `UPDATE` over the row that was judged, for the admin's updates too.
 6. **Overlapping majors** (§3.2): the contract window, the adapter, catalog format 3. Needed when contract 6
    is planned, not before.
    *Note (2026-10-24):* contract 6 is the rename of ADR-0010, and it is **not** served by this machinery: with nobody

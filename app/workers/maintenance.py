@@ -37,7 +37,8 @@ from services.auth import auth_manager_for
 from services.credentials import has_own_account, own_store, shared_store
 from services.delegation import poll_for_requested_track
 from services.enrichment import check_sync_availability
-from services.progress import publish_download_progress
+from services.progress import publish_download_progress, publish_event
+from services.sources import SourceManager
 from services.stream import resolve_sync_id
 from services import folders, held_uploads, library_reconcile, playlist_downloads, update_check
 from services.workspace import open_workspace, remove_stale_workspaces
@@ -883,3 +884,12 @@ def delete_playlist_tracks(user_id: str, track_ids: list[str]) -> dict:
         return playlist_downloads.delete_downloads(
             session, registry, get_config(), shared, user_id, track_ids,
         )
+
+
+@celery.task(name="workers.maintenance.auto_update_providers")
+def auto_update_providers() -> dict:
+    """Applies the provider updates that need no admin (ADR-0007 §5.1, services/sources.py): a compatible digest
+    asking for exactly what was approved. Any other update waits for the admin, as it did; the admins are told of
+    each one applied. A catalog that could not be read fails the run."""
+    with Session(engine) as session:
+        return SourceManager(session).apply_compatible_updates(notify=publish_event)

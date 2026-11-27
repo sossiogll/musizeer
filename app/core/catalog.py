@@ -361,3 +361,21 @@ def diff_permissions(
         roles_added=tuple(sorted(set(new_roles) - set(old_roles))),
         roles_removed=tuple(sorted(set(old_roles) - set(new_roles))),
     )
+
+
+# Why an update a catalog offers waits for the admin instead of being applied by the automatic update
+# (ADR-0007 §5.1): what the routine ``auto_update_providers`` reports for it.
+WAITS_INCOMPATIBLE = "incompatible"
+WAITS_PERMISSIONS = "permissions_changed"
+
+
+def automatic_update_wait(entry: CatalogEntry, diff: PermissionsDiff) -> str | None:
+    """None when an update to ``entry`` may be applied without the admin; else why it waits for them.
+
+    Only an update that is compatible with this host and asks for exactly what the admin approved goes by itself:
+    any difference in permissions or roles, a smaller one included, is the admin's to look at."""
+    if not entry.compatible:
+        return WAITS_INCOMPATIBLE
+    if not diff.is_empty:
+        return WAITS_PERMISSIONS
+    return None

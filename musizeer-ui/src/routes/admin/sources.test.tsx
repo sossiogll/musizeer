@@ -309,6 +309,17 @@ describe("Installed providers", () => {
     expect(await within(row).findByText("Running")).toBeInTheDocument();
     expect(within(row).getByText(/From Team catalog/)).toBeInTheDocument();
     expect(within(row).getByText(`ghcr.io/owner/musizeer-provider-demo@${"a".repeat(12)}`)).toBeInTheDocument();
+    expect(within(row).getByText(/Approved/)).toBeInTheDocument();
+  });
+
+  it("a provider the automatic update moved says so instead of who approved it", async () => {
+    installedList = [installed({ approved_by: null, approved_automatically: true, previous_digest: "sha256:" + "b".repeat(64) })];
+    renderSources();
+
+    const region = await screen.findByRole("region", { name: "Installed providers" });
+    const row = (await within(region).findAllByRole("listitem"))[0];
+    expect(within(row).getByText(/Updated automatically/)).toBeInTheDocument();
+    expect(within(row).queryByText(/Approved/)).not.toBeInTheDocument();
   });
 
   it("a provider the gateway refused shows the state and the reason", async () => {
