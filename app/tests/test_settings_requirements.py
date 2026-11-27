@@ -1,5 +1,5 @@
 """
-Fase 5c (backend): requisiti di DISPONIBILITÀ di una SettingDef
+Requisiti di DISPONIBILITÀ di una SettingDef
 (``core.settings_catalog.Requirement``) e la loro valutazione pura in
 ``core/settings_resolver.py`` — ``compute_provider_usable``,
 ``evaluate_requirement``, ``setting_availability``.

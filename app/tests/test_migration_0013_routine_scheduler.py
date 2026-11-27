@@ -1,5 +1,5 @@
 """
-Fase 8: verifica della migrazione 0013 (tabella ``routine_runs`` + migrazione
+Verifica della migrazione 0013 (tabella ``routine_runs`` + migrazione
 degli intervalli beat pre-esistenti verso le nuove SettingDef dei routine)
 su un DB *temporaneo* creato ad hoc — mai sul DB reale. Stesso stile di
 ``test_migration_0011_drop_user_setting_columns.py``.

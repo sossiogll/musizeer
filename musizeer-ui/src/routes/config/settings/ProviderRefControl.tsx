@@ -15,7 +15,7 @@ interface ProviderRefControlProps {
 }
 
 /**
- * Controllo dedicato per `type === "provider_ref"` (Fase 5c, Task 2). Diverso
+ * Controllo dedicato per `type === "provider_ref"`. Diverso
  * da ogni altro tipo: NON entra mai nella barra di salvataggio in batch di
  * `SettingsArea` — attivare un provider è un'azione esplicita e testata a sé,
  * che il server esegue PRIMA di accettare la scrittura (vedi

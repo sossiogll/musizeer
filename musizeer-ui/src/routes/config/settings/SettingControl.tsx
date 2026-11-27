@@ -12,7 +12,7 @@ interface SettingControlProps {
   def: SettingDef;
   value: unknown;
   onChange: (value: unknown) => void;
-  /** Fase 5c, Task 1: true quando la voce non è disponibile ED è già al suo
+  /** True quando la voce non è disponibile ED è già al suo
    * valore di default — nulla da spegnere, quindi il controllo va bloccato
    * del tutto (vedi `isLockedUnavailable`, mai calcolato qui). */
   disabled?: boolean;
@@ -24,7 +24,7 @@ interface SettingControlProps {
  * mappa hardcoded lato UI. `type === "list"` NON passa di qui: ha bisogno
  * dell'elenco provider e della logica di merge/riordino, gestita da
  * `ProviderOrderList` (vedi SettingsArea). `type === "provider_ref"` non
- * passa più di qui da Fase 5c, Task 2: attivarlo è un'azione esplicita e
+ * passa più di qui: attivarlo è un'azione esplicita e
  * testata a parte (`ProviderRefControl`), mai un campo del salvataggio
  * in batch.
  */

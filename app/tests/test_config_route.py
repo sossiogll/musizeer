@@ -52,7 +52,7 @@ def session(engine):
 
 @pytest.fixture
 def config(engine):
-    # Fase 4a: ConfigManager e' una facade sopra la tabella `settings` —
+    # ConfigManager e' una facade sopra la tabella `settings` —
     # condivide lo stesso engine del fixture `session` cosi' le route sotto
     # test vedono lo stesso DB. `delegation_webhook_token` è seminato tramite
     # l'API pubblica (`update`, che scrive nella tabella): config.json non è
@@ -79,10 +79,10 @@ def _make_user(session, *, role: str) -> User:
 
 
 def test_non_admin_does_not_receive_secret_value(config, registry, session):
-    # Fase 3b: `delegation_webhook_token` è scope="system" nel CATALOG reale,
-    # quindi un non-admin ora non lo vede PROPRIO (omesso da can_read), non
-    # solo "vuoto" come nel vecchio comportamento — questa omissione è la
-    # correzione di sicurezza voluta esplicitamente da questa fase.
+    # `delegation_webhook_token` è scope="system" nel CATALOG reale,
+    # quindi un non-admin non lo vede PROPRIO (omesso da can_read), non
+    # solo "vuoto" — questa omissione è una correzione di sicurezza voluta
+    # esplicitamente.
     user = _make_user(session, role="user")
     data = get_settings_values(config, registry, session, user)
     assert "delegation_webhook_token" not in data
@@ -138,8 +138,8 @@ def test_non_admin_patch_with_empty_body_is_a_200_noop(config, registry, session
     body = SettingsPatch()
     data = patch_settings(body, config, registry, session, user)
 
-    # track_format è scope="system": omesso per un non-admin (fix di Fase 3b),
-    # non più presente col suo valore come nel vecchio comportamento.
+    # track_format è scope="system": omesso per un non-admin,
+    # non presente col suo valore.
     assert "track_format" not in data
     assert config.all() == original_values
     assert SettingsRepository(session).get_user("metadata_provider_priority", user.id) == original_priority
@@ -157,10 +157,10 @@ def test_non_admin_patch_reports_all_disallowed_keys_sorted(config, registry, se
 
 
 def test_non_admin_patch_with_only_allowed_key_succeeds(config, registry, session):
-    # Fase 4a: l'override personale vive nella tabella `settings` (scope
-    # 'user'). Fase 4b ha droppato la colonna `User.metadata_provider_priority`
-    # — non esiste più nemmeno come schema (vedi la stessa nota in
-    # test_settings_service.py).
+    # L'override personale vive nella tabella `settings` (scope
+    # 'user'). La migrazione 0011 ha droppato la colonna
+    # `User.metadata_provider_priority` — non esiste più nemmeno come schema
+    # (vedi la stessa nota in test_settings_service.py).
     from db.settings_store import SettingsRepository
     from tests.conftest import FakeMetadataProvider
 
@@ -178,7 +178,7 @@ def test_non_admin_patch_with_only_allowed_key_succeeds(config, registry, sessio
 
 
 def test_admin_patch_with_admin_only_key_succeeds(config, registry, session):
-    # Fase 4a: la scrittura passa per la tabella `settings` (via
+    # La scrittura passa per la tabella `settings` (via
     # ConfigManager, che ne è oggi una facade) — config.json non esiste
     # nemmeno più come concetto per ConfigManager, la verifica passa quindi
     # solo da `config.get(...)` (l'API pubblica invariata di ConfigManager).
@@ -192,11 +192,11 @@ def test_admin_patch_with_admin_only_key_succeeds(config, registry, session):
 
 
 # ---------------------------------------------------------------------------
-# GET /providers: la risposta copre OGNI categoria che il registry conosce
-# (Fase 5a, fix 2) — derivata da PROVIDER_CATEGORY_GETTERS, la stessa lista
+# GET /providers: la risposta copre OGNI categoria che il registry conosce —
+# derivata da PROVIDER_CATEGORY_GETTERS, la stessa lista
 # usata da merged_schema per costruire lo schema unificato, non riscritta a
-# mano qui. Prima di questo fix "identification" aveva impostazioni proprie
-# nello schema unificato ma non compariva affatto in questa risposta.
+# mano qui. "identification" ha impostazioni proprie
+# nello schema unificato e deve comparire anche in questa risposta.
 # ---------------------------------------------------------------------------
 
 
@@ -260,7 +260,7 @@ def test_find_provider_returns_none_for_a_name_in_no_category(session):
 # ---------------------------------------------------------------------------
 # GET /providers: un provider con auth.flow == NONE non ha login da tentare,
 # quindi resta sempre "authenticated" — ma questo non vuol dire che sia
-# davvero utilizzabile. Il campo additivo "usable" (Fase 5b fix 4) combina
+# davvero utilizzabile. Il campo additivo "usable" combina
 # quel segnale con la stessa domanda di completezza già esposta da
 # "config_valid" e, per i provider di identificazione, con il loro stesso
 # is_available(): un provider senza login ma con config incompleta o
@@ -309,8 +309,8 @@ def test_provider_with_no_login_and_valid_usable_config_is_usable(config, sessio
 
 
 # ---------------------------------------------------------------------------
-# GET /providers: "also_registered_in" — identità per OGGETTO, mai per nome
-# (Fase 5c, Task 4, fix di regressione). Il frontend deve poter distinguere
+# GET /providers: "also_registered_in" — identità per OGGETTO, mai per nome.
+# Il frontend deve poter distinguere
 # un provider genuinamente registrato in più categorie (un solo oggetto, una
 # sola config salvata) da una collisione di `name` fra due CLASSI DISTINTE
 # registrate ciascuna in una categoria diversa — la forma esatta del

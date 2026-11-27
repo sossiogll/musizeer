@@ -74,7 +74,7 @@ def session(engine):
 
 @pytest.fixture
 def config(engine):
-    # Fase 4a: ConfigManager e' una facade sopra la stessa tabella `settings`
+    # ConfigManager e' una facade sopra la stessa tabella `settings`
     # che SettingsService raggiunge via SettingsRepository — condivide quindi
     # lo STESSO engine del fixture `session` (un DB SQLite in-memory dedicato
     # a questo modulo di test), cosi' le scritture fatte attraverso l'uno
@@ -210,13 +210,12 @@ def test_write_rejects_whole_batch_when_one_key_is_bad_and_writes_nothing(servic
 # innocuo come `search_limit`. Il contratto si sposta sulla lettura — vedi
 # la sezione "GET /providers: config_valid" più sotto.
 #
-# NOTA (Fase 4a): questi test ispezionavano lo storage tramite
-# ``CredentialStore(session, user_id=None).get_provider_config(...)`` — quello
-# ERA lo storage per ``provider_config`` in Fase 3b. Questa fase lo sposta
-# nella tabella `settings` (namespaced, una riga per short key): l'assert sul
-# valore atteso resta lo stesso, solo il punto di ispezione cambia per
-# puntare al nuovo storage reale, altrimenti il test passerebbe verificando
-# un percorso ormai morto (``provider_config`` non riceve più scritture).
+# NOTA: questi test non ispezionano lo storage tramite
+# ``CredentialStore(session, user_id=None).get_provider_config(...)`` — non
+# è più lo storage per ``provider_config``, che vive nella tabella `settings`
+# (namespaced, una riga per short key). Il punto di ispezione è quello reale,
+# altrimenti il test passerebbe verificando un percorso ormai morto
+# (``provider_config`` non riceve più scritture).
 # ---------------------------------------------------------------------------
 
 
@@ -261,8 +260,7 @@ def test_provider_setting_written_through_service_is_immediately_visible_to_ever
     # i worker, le route di ricerca/stream) leggevano la config di un
     # provider da ``CredentialStore.get_provider_config`` — uno storage
     # diverso da quello scritto da SettingsService. ``CredentialStore`` non
-    # ha più (Fase 4a, seconda iterazione) alcun metodo di config: quella
-    # classe è tornata a essere dedicata ai soli segreti. Ogni consumatore
+    # ha più alcun metodo di config: quella classe è dedicata ai soli segreti. Ogni consumatore
     # reale legge ora tramite ``self.context.settings()`` — il
     # ``HostProviderContext`` di un provider (``services/provider_context.py``)
     # — o direttamente tramite ``SettingsRepository`` +
@@ -332,11 +330,12 @@ def test_admin_write_of_overridable_key_sets_global_default(service, session, co
 
 
 def test_non_admin_write_of_overridable_key_sets_personal_override_only(service, session, config):
-    # Fase 4a: l'override personale vive nella tabella `settings` (scope
-    # 'user'). Fase 4b ha droppato la colonna `User.metadata_provider_priority`
-    # che la ospitava prima — questo test pin esplicitamente che la scrittura
-    # continua ad andare SOLO nel nuovo storage (regressione reale da evitare:
-    # vedi routes/deps.resolve_metadata_priority, che legge dallo stesso posto).
+    # L'override personale vive nella tabella `settings` (scope
+    # 'user'). La migrazione 0011 ha droppato la colonna
+    # `User.metadata_provider_priority` che la ospitava prima — questo test
+    # pin esplicitamente che la scrittura continua ad andare SOLO nel nuovo
+    # storage (regressione reale da evitare: vedi
+    # routes/deps.resolve_metadata_priority, che legge dallo stesso posto).
     user = _make_user(session, role="user")
 
     service.write_values({"metadata_provider_priority": ["x", "y"]}, user)
@@ -368,7 +367,7 @@ def test_two_users_overrides_are_independent_and_admin_default_is_the_fallback(s
 
 
 # ---------------------------------------------------------------------------
-# scope='user' puro (Fase 4b): language, theme — a
+# scope='user' puro: language, theme — a
 # differenza di 'system_with_user_override' qui non esiste MAI un default
 # globale: l'unica riga possibile e' quella dell'utente stesso.
 # ---------------------------------------------------------------------------
@@ -412,7 +411,7 @@ def test_admin_writing_a_user_scoped_setting_writes_their_own_row_not_a_global_d
 
 
 def test_user_with_no_row_omits_the_key_entirely(service, session):
-    # Fase 4b (revisione): a differenza di 'system_with_user_override', qui
+    # A differenza di 'system_with_user_override', qui
     # non c'e' un fallback da restituire quando l'utente non ha mai scelto —
     # la chiave sparisce del tutto da effective_values, invece di essere
     # riempita col default dichiarato ("en"/"system"/False). L'assenza e'

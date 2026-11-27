@@ -1,5 +1,5 @@
 """
-Fase 4a: verifica della migrazione 0010 (tabella `settings` unificata) su un
+Verifica della migrazione 0010 (tabella `settings` unificata) su un
 DB *temporaneo* creato ad hoc — mai sul DB reale.
 
 Regola d'oro rispettata: provider finti con nomi generici
@@ -58,7 +58,7 @@ def _seed_pre_0010(data_dir: Path, engine) -> None:
 
     # Inseriti via SQL grezzo, non tramite il modello ORM `User`: a questo
     # punto della cronologia (revisione 0009) la tabella `users` ha ancora le
-    # due colonne che 0011 (Fase 4b) droppa — ma `db.models.User` di OGGI
+    # due colonne che 0011 droppa — ma `db.models.User` di OGGI
     # riflette lo schema POST-0011 e non le espone più come campi. Scrivere
     # SQL diretto sulla tabella (già portata a 0009 da `command.upgrade`
     # sopra) esercita esattamente lo schema che la migrazione 0010 vede

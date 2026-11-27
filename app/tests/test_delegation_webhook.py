@@ -1,5 +1,5 @@
 """
-Copre la Fase 2b: la vecchia route hardcoded a un solo download provider
+La vecchia route hardcoded a un solo download provider
 (`routes/lidarr_webhook.py`) e' stata sostituita da una capability opzionale
 sul contratto (`DownloadProvider.delegation_event_handle` /
 `register_push_endpoint`, in `musizeer_sdk.interfaces`) piu' una route generica
@@ -51,7 +51,7 @@ def session():
 
 @pytest.fixture
 def config():
-    # Fase 4a: ConfigManager e' una facade sopra la tabella `settings` e, se
+    # ConfigManager e' una facade sopra la tabella `settings` e, se
     # non gli si passa un engine esplicito, risolve quello di PRODUZIONE
     # (db.engine.engine) — necessario per i call-site reali (zero-arg), ma
     # qui servirebbe un engine dedicato e isolato: altrimenti questo test

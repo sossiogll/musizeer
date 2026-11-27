@@ -7,7 +7,7 @@ import { I18nProvider, useI18n } from "@/i18n";
 import { PreferencesSync } from "./PreferencesSync";
 
 // PreferencesSync bridges AuthContext (identity) and GET/PATCH /settings
-// (Fase 5a: the same endpoints the new SettingsArea renderer uses) into
+// (the same endpoints the SettingsArea renderer uses) into
 // ThemeContext/I18nContext. Mocking the API functions and AuthContext lets
 // these tests drive the bridge directly, against the REAL Theme/I18n/
 // react-query providers, without hitting a network.

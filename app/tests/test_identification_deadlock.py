@@ -1,6 +1,6 @@
 """
 End-to-end regression of the deadlock identification_enabled <-> "provider
-usable" (found in the review of phase 5c).
+usable".
 
 Before the fix, an identification provider's ``is_available()`` also looked at
 ``identification_enabled``. The requirement declared for turning

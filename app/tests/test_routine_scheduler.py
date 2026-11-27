@@ -149,7 +149,7 @@ def test_tick_reaps_a_stale_running_row_then_dispatches_again(isolated_engine, m
 
 
 def test_tick_respects_an_interval_change_without_restart(isolated_engine, monkeypatch, engine):
-    """Il cuore della Fase 8: cambiare l'intervallo da PATCH /system/routines
+    """Il cuore dello scheduler: cambiare l'intervallo da PATCH /system/routines
     (che scrive nella tabella `settings`, come qualunque altra impostazione)
     ha effetto al PROSSIMO tick, senza reimportare/riavviare nulla."""
     monkeypatch.setattr(scheduler, "ROUTINES", (R1,))

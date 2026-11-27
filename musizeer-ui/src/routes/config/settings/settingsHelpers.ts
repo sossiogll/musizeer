@@ -1,8 +1,8 @@
 import type { ProviderInfo, ProvidersResponse } from "@/types";
 import type { SettingDef } from "@/lib/api-client";
 
-// Le cinque categorie originarie più "identification" (Fase 5a fix 2: GET
-// /providers ora copre ogni categoria che il registry conosce, la stessa
+// Le cinque categorie originarie più "identification" (GET
+// /providers copre ogni categoria che il registry conosce, la stessa
 // lista di core/settings_resolver.py::PROVIDER_CATEGORY_GETTERS). Sono
 // categorie di provider dichiarate dal core (il ruolo pluggable, non
 // un'implementazione concreta) — la stessa classe di "nome" che
@@ -66,7 +66,7 @@ export function mergeProviderOrder(order: string[] | undefined, providers: Provi
 }
 
 /**
- * Fase 5c, Task 3 — etichette da mostrare come badge su una card di provider:
+ * Etichette da mostrare come badge su una card di provider:
  * la label di OGNI impostazione `provider_ref` la cui `provider_category`
  * corrisponde a `category` e il cui valore attuale è esattamente
  * `providerName`. Guidato interamente da schema + valori — nessun nome di
@@ -101,8 +101,8 @@ export function isSettingVisible(def: SettingDef, valueOf: (key: string) => unkn
 // una chiave di provider è sempre "provider.<nome>.<short_key>" (almeno due
 // punti dopo il prefisso). Riconosciuto dalla FORMA della chiave, mai da un
 // elenco di nomi di provider: così un nuovo provider non richiede mai una
-// modifica qui (Fase 5b, fix strutturale — le card di provider sono l'unico
-// editor delle loro impostazioni, `SettingsArea` non le duplica più).
+// modifica qui (le card di provider sono l'unico
+// editor delle loro impostazioni, `SettingsArea` non le duplica).
 const _PROVIDER_KEY_PREFIX = "provider.";
 
 export function isProviderNamespacedKey(key: string): boolean {
@@ -135,7 +135,7 @@ export function providerSettingsSchema(
 }
 
 // ---------------------------------------------------------------------------
-// Fase 5c, Task 1 — disponibilità di un'impostazione (`available` /
+// Disponibilità di un'impostazione (`available` /
 // `unavailable_reason`, esposti additivamente da GET /settings/schema).
 // ---------------------------------------------------------------------------
 

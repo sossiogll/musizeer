@@ -1,5 +1,5 @@
 """drop `users.auto_like_on_sync` and `users.metadata_provider_priority`
-(Phase 4b: the two columns survive from before the unified `settings` store)
+(the two columns survive from before the unified `settings` store)
 
 Revision ID: 0011_drop_user_setting_columns
 Revises: 0010_settings_store
@@ -9,7 +9,7 @@ Migration ``0010`` introduced the unified ``settings`` table and copied both
 per-user columns into it (``auto_like_on_sync`` -> one ``user`` row per user
 always; ``metadata_provider_priority`` -> one ``user`` row only where set),
 but left the columns themselves in place — dropping them was explicitly
-deferred to this phase, once every production reader/writer moved onto
+deferred to this migration, once every production reader/writer moved onto
 ``SettingsRepository``. That move happened alongside this migration (see
 ``app/routes/users_auth.py``, ``app/workers/tasks.py``,
 ``app/workers/maintenance.py``): ``auto_like_on_sync`` is now a declared
@@ -17,7 +17,7 @@ deferred to this phase, once every production reader/writer moved onto
 makes dropping the column safe. ``metadata_provider_priority`` had no
 production reader left even before this migration (only tests and one
 explanatory comment referenced the column); it was already a declared
-``SettingDef`` (scope='system_with_user_override') since Phase 3b.
+``SettingDef`` (scope='system_with_user_override').
 
 Idempotency / safety net: ``0010`` copied both columns exactly once, at the
 time it ran. A user registered, or whose ``auto_like_on_sync``/

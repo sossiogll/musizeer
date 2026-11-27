@@ -1,5 +1,5 @@
 """
-Fase 5c (backend): disponibilità delle impostazioni end-to-end attraverso
+Disponibilità delle impostazioni end-to-end attraverso
 ``SettingsService`` — valutazione (``evaluate_availability``, Task 2),
 enforcement in scrittura (``write_values``, Task 3) e test-before-switch di
 un ``provider_ref`` (Task 4).

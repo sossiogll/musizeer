@@ -427,15 +427,15 @@ class FakeDelegatingDownloadProvider(FakeDownloadProvider):
 class FakeIdentificationProvider(IdentificationProvider):
     """Identification provider finto — usato per verificare che GET
     /providers (routes/config.py::list_providers) copra OGNI categoria che
-    il registry conosce, ``identification`` compresa: prima di Fase 5a fix 2
-    questa categoria aveva impostazioni proprie nello schema unificato
-    (``merged_schema``) ma non compariva affatto in GET /providers, quindi un
-    provider come questo non aveva un'etichetta trovabile lato UI.
+    il registry conosce, ``identification`` compresa: ha impostazioni proprie nello
+    schema unificato (``merged_schema``), quindi deve comparire anche in GET
+    /providers, o un provider come questo non avrebbe un'etichetta
+    trovabile lato UI.
 
     ``config_valid``/``available`` sono regolabili (default: entrambi True,
     il caso "tutto ok") per riprodurre anche il caso di un provider con
     ``auth.flow == NONE`` e config incompleta o non disponibile — quello che
-    Fase 5b fix 4 (``_provider_info``) deve segnalare come non ``usable``
+    ``_provider_info`` deve segnalare come non ``usable``
     pur restando ``authenticated`` (nessun login da tentare)."""
 
     auth = AuthDefinition(flow=AuthFlow.NONE, account_model=AccountModel.NONE)
@@ -446,7 +446,7 @@ class FakeIdentificationProvider(IdentificationProvider):
         self.label = name.title()
         self._config_valid = config_valid
         self._available = available
-        # Fase 5c: conta le chiamate a identify() — usato per dimostrare che
+        # Conta le chiamate a identify() — usato per dimostrare che
         # un gate a monte (es. il toggle globale identification_enabled in
         # workers/tasks.py::_should_run_anti_mislabel) impedisce DAVVERO la
         # chiamata, non solo che il chiamante "non fa nulla di visibile".

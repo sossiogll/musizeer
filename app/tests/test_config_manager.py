@@ -1,5 +1,5 @@
 """
-Fase 4a: ``services/config_manager.py`` — ``ConfigManager`` è oggi una facade
+``services/config_manager.py`` — ``ConfigManager`` è oggi una facade
 sopra ``SettingsRepository`` (tabella ``settings``, scope 'system'), e
 QUELLA tabella è l'unica fonte di verità a runtime — niente più fallback su
 ``config.json`` (che nessuno scrive più: un fallback su un file stantio

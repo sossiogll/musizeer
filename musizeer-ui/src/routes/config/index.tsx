@@ -15,7 +15,7 @@ function isUnauthorized(error: unknown): boolean {
 }
 
 /**
- * Fase 5a: i tab sono guidati da `taxonomy.areas` (GET /settings/schema),
+ * I tab sono guidati da `taxonomy.areas` (GET /settings/schema),
  * nell'ordine dichiarato lì — mai un elenco di quattro aree cablato qui. Una
  * quinta area dichiarata più avanti nel core compare da sola, senza alcuna
  * modifica a questo file.

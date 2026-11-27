@@ -1,5 +1,5 @@
 """
-Fase 3a: motore di risoluzione delle impostazioni (``core/settings_resolver``).
+Motore di risoluzione delle impostazioni (``core/settings_resolver``).
 
 Regola d'oro rispettata: i fake vivono qui, nessun nome di provider concreto
 compare in un'asserzione. Dove serve provare la deduplicazione multi-categoria

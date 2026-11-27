@@ -8,7 +8,7 @@ interface ProviderOrderListProps {
   order: string[];
   providers: ProviderInfo[];
   onChange: (order: string[]) => void;
-  /** Fase 5c, Task 1: true quando la voce non è disponibile ED è già al suo
+  /** True quando la voce non è disponibile ED è già al suo
    * valore di default (`isLockedUnavailable`) — nulla da riordinare che
    * sopravviva al salvataggio, quindi le frecce di spostamento sono bloccate. */
   disabled?: boolean;

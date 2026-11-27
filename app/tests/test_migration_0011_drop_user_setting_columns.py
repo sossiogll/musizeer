@@ -1,5 +1,5 @@
 """
-Fase 4b: verifica della migrazione 0011 (drop di `users.auto_like_on_sync` e
+Verifica della migrazione 0011 (drop di `users.auto_like_on_sync` e
 `users.metadata_provider_priority`) su un DB *temporaneo* creato ad hoc — mai
 sul DB reale.
 
